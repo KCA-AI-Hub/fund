@@ -1,0 +1,1022 @@
+/* 파랑~보라 로봇 테마 민원처리 챗봇 */
+
+/* 기본 설정 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 메인 앱 컨테이너 */
+.app {
+    height: 95vh;
+    width: 95%;
+    max-width: 1800px;
+    min-width: 1200px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+    border-radius: 20px;
+    overflow: hidden;
+    transition: all 0.5s ease;
+    transform: translateX(0);
+}
+
+/* 레이아웃 그리드 (2열만 유지) */
+.layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 0;
+    height: 100%;
+    width: 100%;
+}
+
+/* 왼쪽 사이드바 */
+.sidebar {
+    background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="robot-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="1" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23robot-pattern)"/></svg>');
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.sidebar-header {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 20px;
+}
+
+.new-chat-btn {
+    width: 100%;
+    padding: 15px 20px;
+    background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+    color: white;
+    border: none;
+    border-radius: 15px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.new-chat-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 25px rgba(59, 130, 246, 0.6);
+    background: linear-gradient(45deg, #2563eb, #7c3aed);
+}
+
+.chat-history {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.chat-item {
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+}
+
+.chat-item:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(4px);
+}
+
+.chat-item.active {
+    background: linear-gradient(45deg, #fbbf24, #f59e0b);
+    color: #1f2937;
+    box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4);
+}
+
+.chat-item i {
+    font-size: 18px;
+    color: #fbbf24;
+}
+
+/* 중앙 채팅 영역 (완전 확장) */
+.chat-pane {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-pane::before {
+    content: '🤖';
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 20px;
+    opacity: 0.1;
+    z-index: 0;
+}
+
+/* 스레드 래퍼 (완전 확장) */
+.thread {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 메시지 영역 (완전 확장) */
+.messages {
+    flex: 1;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    z-index: 1;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+/* 메시지 스타일 */
+.message {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    animation: messageSlideIn 0.3s ease-out;
+    box-sizing: border-box;
+}
+
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.message.user .message-avatar {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+}
+
+.message.bot .message-avatar {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    color: white;
+}
+
+.message-content {
+    flex: 1;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 18px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    position: relative;
+    word-wrap: break-word;
+    line-height: 1.5;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.message.user .message-content {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    border-bottom-right-radius: 5px;
+}
+
+.message.bot .message-content {
+    background: white;
+    color: #374151;
+    border-bottom-left-radius: 5px;
+    border: 1px solid #e5e7eb;
+}
+
+/* 답변생성 버튼 */
+.generate-answer-container {
+    text-align: center;
+    padding: 20px;
+    border-top: 1px solid #4a4b53;
+}
+
+.generate-answer-btn {
+    background: linear-gradient(45deg, #8e8ea0, #6b7280);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 25px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 20px rgba(142, 142, 160, 0.4);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.generate-answer-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 25px rgba(142, 142, 160, 0.6);
+    background: linear-gradient(45deg, #6b7280, #4b5563);
+}
+
+/* 답변생성 버튼 애니메이션 */
+.generate-answer-btn {
+    animation: pulse 2s infinite;
+}
+
+/* 답변닫기 버튼 스타일 */
+body.has-panels .generate-answer-btn {
+    animation: none;
+}
+
+body.has-panels .generate-answer-btn:hover {
+    background: #c0392b;
+    transform: translateY(-2px);
+}
+
+/* 버튼 펄스 애니메이션 */
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+/* 버튼 전환 애니메이션 */
+.button-pulse {
+    animation: button-transition 0.5s ease;
+}
+
+@keyframes button-transition {
+    0% {
+        transform: scale(0.9);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* 컴포저 영역 (완전 확장) */
+.composer {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 20px;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    position: relative;
+    z-index: 1;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+/* 민원 예시 버튼들 (완전 확장) */
+.complaint-examples {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 20px;
+    box-sizing: border-box;
+}
+
+.complaint-examples h4 {
+    color: #374151;
+    margin-bottom: 15px;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.complaint-examples h4::before {
+    content: '💡';
+    font-size: 18px;
+}
+
+.example-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.example-btn {
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    border: 1px solid #cbd5e1;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-size: 14px;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.example-btn:hover {
+    background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 입력창과 버튼 (완전 확장) */
+.input-container {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 25px;
+    padding: 12px 20px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    box-sizing: border-box;
+    min-height: 48px;
+}
+
+.input-wrapper:focus-within {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2);
+}
+
+#messageInput {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 16px;
+    font-family: inherit;
+    resize: none;
+    min-height: 24px;
+    max-height: 200px;
+    line-height: 1.5;
+    color: #374151;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    vertical-align: middle;
+}
+
+#messageInput::placeholder {
+    color: #9ca3af;
+}
+
+.send-btn {
+    background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+    color: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.send-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.6);
+    background: linear-gradient(45deg, #2563eb, #1d4ed8);
+}
+
+.send-btn:active {
+    transform: scale(0.95);
+}
+
+/* 오른쪽 패널들 (슬라이드 방식) */
+.right-panels {
+    position: fixed;
+    top: 2.5vh;
+    right: 0;
+    height: 95vh;
+    width: 50%;
+    min-width: 700px;
+    display: flex;
+    transform: translateX(100%);
+    transition: transform 0.5s ease;
+    z-index: 1000;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    box-shadow: -5px 0 20px rgba(102, 126, 234, 0.3);
+    border-left: 2px solid rgba(102, 126, 234, 0.3);
+    border-radius: 20px 0 0 20px;
+}
+
+/* 패널 열림 상태 */
+body.has-panels .right-panels {
+    transform: translateX(0);
+}
+
+/* 앱 컨테이너 크기 유지 */
+body.has-panels .app {
+    width: 100%;
+    max-width: 1800px;
+    transition: all 0.5s ease;
+    margin-right: -5%;
+}
+
+/* 레이아웃 그리드 변경 - 채팅창만 줄어들게 */
+body.has-panels .layout {
+    grid-template-columns: 260px 1fr;
+}
+
+/* 채팅창만 줄어들게 */
+body.has-panels .chat-pane {
+    width: calc(100% - 260px);
+    max-width: calc(50% - 260px);
+}
+
+.right-reco, .right-laws {
+    flex: 1;
+    background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+    border-left: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.right-reco {
+    border-left: none;
+}
+
+.panel-header {
+    padding: 20px;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+}
+
+.panel-header h3 {
+    color: #374151;
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.panel-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    position: relative;
+}
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #6b7280;
+}
+
+.loading-spinner i {
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.law-item {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #3b82f6;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.law-item:hover {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+/* 개별 항목 삭제 버튼 */
+.law-item-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: scale(0.8);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.law-item:hover .law-item-remove {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.law-item-remove:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
+}
+
+.law-item-remove:active {
+    transform: scale(0.95);
+}
+
+.law-item h4 {
+    color: #374151;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.law-item p {
+    color: #6b7280;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* 법령 출처 정보 스타일 */
+.law-source {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.law-guideline,
+.law-article {
+    background: linear-gradient(135deg, #e0f2fe, #b3e5fc);
+    color: #0277bd;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #81d4fa;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.law-guideline {
+    background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+    color: #7b1fa2;
+    border-color: #ce93d8;
+}
+
+.law-article {
+    background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+    color: #2e7d32;
+    border-color: #a5d6a7;
+}
+
+/* 기본 법령의 조항 태그들 */
+.law-articles {
+    margin-top: 10px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.article-tag {
+    background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+    color: #e65100;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid #ffcc02;
+    display: inline-flex;
+    align-items: center;
+}
+
+.panel-actions {
+    padding: 20px;
+    border-top: 1px solid #e5e7eb;
+    background: white;
+    display: flex;
+    gap: 10px;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: white;
+    color: #6b7280;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.action-btn:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+}
+
+.action-btn.edit-btn:hover {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.action-btn.copy-btn:hover {
+    background: #f0fdf4;
+    border-color: #10b981;
+    color: #10b981;
+}
+
+/* 법령 편집 다단계 패널 */
+.law-edit-panel {
+    position: fixed;
+    top: 2.5vh;
+    right: 0;
+    height: 95vh;
+    width: 45%;
+    min-width: 600px;
+    max-width: 700px;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    box-shadow: -5px 0 25px rgba(102, 126, 234, 0.4);
+    border-left: 2px solid rgba(102, 126, 234, 0.3);
+    border-radius: 20px 0 0 20px;
+    transform: translateX(100%);
+    transition: transform 0.5s ease;
+    z-index: 1100; /* 기존 패널보다 높은 z-index */
+    overflow: hidden;
+}
+
+/* 법령 편집 패널 열림 상태 */
+.law-edit-panel.show {
+    transform: translateX(0);
+}
+
+/* 법령 편집 단계 */
+.law-edit-step {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.law-edit-step.hidden {
+    display: none;
+}
+
+/* 법령 편집 헤더 */
+.law-edit-header {
+    padding: 20px 25px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.law-edit-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.law-edit-header h3::before {
+    content: '⚖️';
+    font-size: 20px;
+}
+
+/* 법령 편집 내용 영역 */
+.law-edit-content {
+    flex: 1;
+    padding: 25px;
+    overflow-y: auto;
+    background: white;
+}
+
+/* 지침/조항/항 목록 */
+.guideline-list,
+.article-list,
+.clause-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 지침/조항 버튼 스타일 */
+.guideline-btn,
+.article-btn {
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 15px 20px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.guideline-btn:hover,
+.article-btn:hover {
+    background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+    border-color: #3b82f6;
+    transform: translateX(5px);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+}
+
+.guideline-btn::before {
+    content: '📋';
+    font-size: 18px;
+}
+
+.article-btn::before {
+    content: '📄';
+    font-size: 18px;
+}
+
+/* 항 버튼 스타일 (복수선택 가능) */
+.clause-btn {
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 14px;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: left;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    position: relative;
+}
+
+.clause-btn:hover {
+    background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+    border-color: #6b7280;
+    transform: translateX(3px);
+}
+
+.clause-btn.selected {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    border-color: #3b82f6;
+    color: #1e40af;
+    box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
+}
+
+.clause-btn.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    color: #3b82f6;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.clause-btn::before {
+    content: '▪️';
+    font-size: 14px;
+    margin-top: 2px;
+}
+
+/* 항 내용 */
+.clause-content {
+    flex: 1;
+}
+
+.clause-title {
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #1f2937;
+}
+
+.clause-text {
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.4;
+}
+
+/* 법령 편집 액션 버튼들 */
+.law-edit-actions {
+    padding: 20px 25px;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.law-edit-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 80px;
+    justify-content: center;
+}
+
+.law-edit-btn.close-btn {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.law-edit-btn.close-btn:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
+
+.law-edit-btn.back-btn {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+    box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);
+}
+
+.law-edit-btn.back-btn:hover {
+    background: linear-gradient(135deg, #4b5563, #374151);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(107, 114, 128, 0.4);
+}
+
+.law-edit-btn.apply-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    flex: 1;
+    max-width: 150px;
+}
+
+.law-edit-btn.apply-btn:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.law-edit-btn:active {
+    transform: scale(0.98);
+}
+
+/* 선택된 항목 개수 표시 */
+.selected-count {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: auto;
+    display: none;
+}
+
+.selected-count.show {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.selected-count::before {
+    content: '🔢';
+    font-size: 14px;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 1200px) {
+    .app {
+        min-width: 1000px;
+    }
+    
+    .right-panels {
+        width: 600px;
+    }
+    
+    .law-edit-panel {
+        width: 50%;
+        min-width: 500px;
+    }
+}
+
+@media (max-width: 768px) {
+    .app {
+        min-width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+    }
+    
+    .layout {
+        grid-template-columns: 1fr;
+    }
+    
+    .sidebar {
+        display: none;
+    }
+    
+    .right-panels {
+        width: 100vw;
+    }
+    
+    .law-edit-panel {
+        width: 100vw;
+        min-width: 100vw;
+        border-radius: 0;
+    }
+}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>민원처리 챗봇</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app" id="app">
+        <div class="layout">
+            <!-- 왼쪽 사이드바 -->
+            <div class="sidebar">
+            <div class="sidebar-header">
+                <button id="newChatBtn" class="new-chat-btn">
+                    <i class="fas fa-plus"></i>
+                    새 채팅
+                </button>
+            </div>
+            <div class="chat-history" id="chatHistory">
+                <!-- 채팅 내역들이 여기에 추가됩니다 -->
+            </div>
+        </div>
+
+        <!-- 중앙 채팅 영역 -->
+        <div class="chat-pane">
+            <div class="thread">
+                <div class="messages" id="chatMessages">
+                    <!-- 채팅 메시지들이 여기에 추가됩니다 -->
+                </div>
+                
+                <div class="composer">
+                    <!-- 민원 예시 버튼들 -->
+                    <div class="complaint-examples">
+                        <h4>자주 들어오는 민원 예시</h4>
+                        <div class="example-buttons">
+                            <button class="example-btn" data-example="건축허가 관련 민원">🏗️ 건축허가</button>
+                            <button class="example-btn" data-example="도로교통 민원">🚗 도로교통</button>
+                            <button class="example-btn" data-example="환경오염 민원">🌱 환경오염</button>
+                            <button class="example-btn" data-example="행정처분 이의신청">📋 행정처분</button>
+                            <button class="example-btn" data-example="정보공개 청구">📄 정보공개</button>
+                            <button class="example-btn" data-example="공공시설 이용 민원">🏛️ 공공시설</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 입력창과 버튼들 -->
+                    <div class="input-container">
+                        <div class="input-wrapper">
+                            <textarea id="messageInput" placeholder="민원 내용을 입력해주세요..." maxlength="1000" rows="1"></textarea>
+                            <button id="sendButton" class="send-btn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        </div>
+    </div>
+
+    <!-- 오른쪽 패널들 (컨테이너 밖으로 분리) -->
+    <div class="right-panels" id="rightPanels">
+        <div class="right-reco" id="answerPanel">
+            <div class="panel-header">
+                <h3>💡 답변추천</h3>
+            </div>
+            <div class="panel-content" id="answerContent">
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>답변을 생성하고 있습니다...</p>
+                </div>
+            </div>
+            <div class="panel-actions">
+                <button id="editAnswerBtn" class="action-btn edit-btn">
+                    <i class="fas fa-edit"></i> 수정
+                </button>
+                <button id="copyAnswerBtn" class="action-btn copy-btn">
+                    <i class="fas fa-copy"></i> 복사
+                </button>
+            </div>
+        </div>
+
+        <div class="right-laws" id="lawPanel">
+            <div class="panel-header">
+                <h3>⚖️ 관련법령</h3>
+            </div>
+            <div class="panel-content" id="lawContent">
+                <div class="law-item">
+                    <h4>민원사무처리에 관한 법률</h4>
+                    <p>제1조 (목적) 이 법은 민원사무의 처리에 관한 기본사항을 정함으로써...</p>
+                </div>
+                <div class="law-item">
+                    <h4>행정절차법</h4>
+                    <p>제1조 (목적) 이 법은 행정청의 처리가 국민의 권리와 의무에 직접적인 영향을 미치는...</p>
+                </div>
+            </div>
+            <div class="panel-actions">
+                <button id="editLawBtn" class="action-btn edit-btn">
+                    <i class="fas fa-edit"></i> 수정
+                </button>
+                <button id="copyLawBtn" class="action-btn copy-btn">
+                    <i class="fas fa-copy"></i> 복사
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 법령 편집 다단계 패널 (기존 패널들 위에 슬라이드) -->
+    <div class="law-edit-panel" id="lawEditPanel">
+        <!-- 1단계: 지침 목록 -->
+        <div class="law-edit-step" id="guidelineStep">
+            <div class="law-edit-header">
+                <h3>관련 지침 선택</h3>
+            </div>
+            <div class="law-edit-content">
+                <div class="guideline-list" id="guidelineList">
+                    <!-- 지침 버튼들이 여기에 동적으로 추가됩니다 -->
+                </div>
+            </div>
+            <div class="law-edit-actions">
+                <button class="law-edit-btn close-btn" id="closeFromGuideline">닫기</button>
+            </div>
+        </div>
+
+        <!-- 2단계: 조항 목록 -->
+        <div class="law-edit-step" id="articleStep" style="display: none;">
+            <div class="law-edit-header">
+                <h3 id="selectedGuidelineTitle">선택된 지침</h3>
+            </div>
+            <div class="law-edit-content">
+                <div class="article-list" id="articleList">
+                    <!-- 조항 버튼들이 여기에 동적으로 추가됩니다 -->
+                </div>
+            </div>
+            <div class="law-edit-actions">
+                <button class="law-edit-btn back-btn" id="backToGuideline">뒤로가기</button>
+                <button class="law-edit-btn close-btn" id="closeFromArticle">닫기</button>
+            </div>
+        </div>
+
+        <!-- 3단계: 항 목록 (복수선택 가능) -->
+        <div class="law-edit-step" id="clauseStep" style="display: none;">
+            <div class="law-edit-header">
+                <h3 id="selectedArticleTitle">선택된 조항</h3>
+            </div>
+            <div class="law-edit-content">
+                <div class="clause-list" id="clauseList">
+                    <!-- 항 버튼들이 여기에 동적으로 추가됩니다 -->
+                </div>
+            </div>
+            <div class="law-edit-actions">
+                <button class="law-edit-btn apply-btn" id="applySelected">선택된 항 적용</button>
+                <button class="law-edit-btn back-btn" id="backToArticle">뒤로가기</button>
+                <button class="law-edit-btn close-btn" id="closeFromClause">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

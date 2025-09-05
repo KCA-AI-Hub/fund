@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 민원처리 챗봇 테스트</title>
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+        }
+        h1 {
+            color: #4f46e5;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .status {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #f0fdf4;
+            border-color: #22c55e;
+            color: #166534;
+        }
+        .error {
+            background: #fef2f2;
+            border-color: #ef4444;
+            color: #dc2626;
+        }
+        .file-list {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .file-icon {
+            margin-right: 10px;
+            font-size: 20px;
+        }
+        .btn {
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 민원처리 챗봇 시스템</h1>
+        
+        <div class="status success">
+            <h3>✅ 시스템 준비 완료!</h3>
+            <p>모든 파일이 정상적으로 로드되었습니다. 아래 버튼을 클릭하여 챗봇을 시작하세요.</p>
+        </div>
+
+        <div class="file-list">
+            <h3>📁 프로젝트 파일 목록</h3>
+            <div class="file-item">
+                <span class="file-icon">📄</span>
+                <span>index.html - 메인 챗봇 페이지</span>
+            </div>
+            <div class="file-item">
+                <span class="file-icon">🎨</span>
+                <span>styles.css - 파랑~보라 로봇 테마 스타일</span>
+            </div>
+            <div class="file-item">
+                <span class="file-icon">⚙️</span>
+                <span>script.js - 챗봇 기능 및 상호작용</span>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="index.html" class="btn">
+                🚀 챗봇 시작하기
+            </a>
+        </div>
+
+        <div class="status">
+            <h3>💡 사용 방법</h3>
+            <ol>
+                <li>위의 "챗봇 시작하기" 버튼을 클릭하세요</li>
+                <li>민원 예시 버튼을 클릭하거나 직접 입력하세요</li>
+                <li>봇과 대화한 후 "답변생성" 버튼을 클릭하세요</li>
+                <li>답변추천과 관련법령을 확인하세요</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // 파일 존재 여부 확인
+        function checkFiles() {
+            const files = ['index.html', 'styles.css', 'script.js'];
+            const status = document.querySelector('.status');
+            
+            fetch('styles.css')
+                .then(response => {
+                    if (!response.ok) {
+                        status.className = 'status error';
+                        status.innerHTML = '<h3>❌ CSS 파일을 찾을 수 없습니다</h3><p>styles.css 파일이 같은 폴더에 있는지 확인해주세요.</p>';
+                    }
+                })
+                .catch(error => {
+                    status.className = 'status error';
+                    status.innerHTML = '<h3>❌ 파일 로드 오류</h3><p>파일 경로를 확인해주세요.</p>';
+                });
+        }
+
+        // 페이지 로드 시 파일 확인
+        window.addEventListener('load', checkFiles);
+    </script>
+</body>
+</html>
+
+
