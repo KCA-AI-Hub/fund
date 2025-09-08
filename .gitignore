@@ -1,0 +1,152 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# uv
+.venv/
+uv.lock
+
+# FastAPI
+instance/
+.webassets-cache
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.sqlite
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Logs
+logs/
+*.log
+log/
+*.log.*
+
+# IDE - VS Code
+.vscode/
+*.code-workspace
+.history/
+
+# IDE - PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE - Cursor
+.cursor/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Testing
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Documentation
+docs/_build/
+docs/.doctrees
+site/
+
+# Node (if using any JS build tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.tmp/
+tmp/
+temp/
+
+# Security - Never commit these
+*.pem
+*.key
+*.crt
+*.pfx
+secrets/
+credentials/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Custom project specific
+/data/chatbot.db
+/data/*.db-wal
+/data/*.db-shm
+/static/uploads/
+/logs/*.log
+/improve/*.tmp
+
+# LLM API Keys and Configs
+openai_key.txt
+api_keys.json
+config.secret.json
