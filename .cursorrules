@@ -1,0 +1,296 @@
+# Flask AI 챗봇 프로젝트 개발 가이드
+
+## 프로젝트 개요
+Flask 기반 민원처리 AI 챗봇 애플리케이션입니다. OpenAI API를 활용하여 대한민국 공무원 역할로 민원인의 문의에 응답합니다.
+
+## 기술 스택
+- **Backend**: Python 3.13+, Flask 3.1+
+- **AI/ML**: OpenAI API (GPT-4o-mini)
+- **Package Manager**: uv
+- **Frontend**: React/Next.js (선택사항)
+- **UI Components**: shadcn/ui
+- **Styling**: Tailwind CSS
+- **Language**: Korean (한국어)
+
+## 프로젝트 구조
+
+```
+fund/
+├── app.py                 # Flask 메인 애플리케이션
+├── config.py             # 앱 설정 (환경변수, 상수)
+├── pyproject.toml        # Python 프로젝트 설정
+├── uv.lock              # 의존성 락 파일
+├── .env                 # 환경 변수 (Git 제외)
+├── tailwind.config.js   # Tailwind 설정
+├── postcss.config.js    # PostCSS 설정
+│
+├── api/                 # API 엔드포인트
+│   ├── __init__.py
+│   └── chat.py          # 채팅 API 라우트
+│
+├── services/            # 핵심 비즈니스 로직
+│   ├── __init__.py
+│   ├── openai.py        # OpenAI API 통합
+│   └── chat.py          # 채팅 처리 로직
+│
+├── static/              # 정적 파일
+│   ├── css/
+│   │   └── output.css   # Tailwind 컴파일된 CSS
+│   └── js/
+│       └── app.js       # 메인 JavaScript
+│
+├── templates/           # HTML 템플릿
+│   ├── base.html        # 기본 템플릿
+│   ├── index.html       # 메인 페이지
+│   └── components/      # 재사용 컴포넌트
+│       └── ui/          # shadcn/ui 컴포넌트
+│
+├── tests/               # 테스트 코드
+│   └── test_api.py      # API 테스트
+│
+└── logs/                # 로그 파일 (Git 제외)
+    └── app.log          # 애플리케이션 로그
+```
+
+## 코딩 규칙
+
+### Python 코드 스타일
+- PEP 8 준수
+- 함수/변수명: snake_case
+- 클래스명: PascalCase
+- 상수: UPPER_SNAKE_CASE
+- 독스트링: Google 스타일 사용
+- 타입 힌트 적극 활용
+
+### Flask 베스트 프랙티스
+- 간단한 프로젝트는 Blueprint 대신 api 폴더로 관리
+- 환경별 설정은 .env 파일과 config.py로 관리
+- 에러 핸들링은 app.errorhandler 데코레이터 사용
+- CORS는 flask-cors 사용
+- 초기에는 메모리 세션, 추후 Redis 고려
+
+### 보안 고려사항
+- 환경 변수로 민감한 정보 관리
+- API 키는 절대 코드에 하드코딩 금지
+- SQL Injection 방지 (ORM 사용 권장)
+- XSS 방지 (템플릿 자동 이스케이프)
+- CSRF 토큰 사용
+- Rate limiting 구현
+
+### API 설계 원칙
+- RESTful 원칙 준수
+- 일관된 응답 형식
+- 적절한 HTTP 상태 코드 사용
+- 페이지네이션 지원
+- 버전 관리 (/api/v1/)
+
+### 에러 처리
+- 구체적인 에러 메시지 제공
+- 로깅 레벨 적절히 설정
+- 사용자 친화적 에러 페이지
+- API 에러는 JSON 형식으로 반환
+
+### 로깅 가이드라인
+- 구조화된 로깅 사용
+- 민감한 정보 로깅 금지
+- 로그 레벨 적절히 구분
+  - DEBUG: 개발 디버깅용
+  - INFO: 일반 정보
+  - WARNING: 경고 사항
+  - ERROR: 에러 발생
+  - CRITICAL: 심각한 오류
+
+### 프론트엔드 규칙
+
+#### Tailwind CSS
+- 유틸리티 우선 접근 방식
+- 커스텀 클래스는 @apply 디렉티브 사용
+- 다크 모드 지원 (dark: prefix)
+- 반응형 디자인 (sm:, md:, lg:, xl:)
+- 컴포넌트 클래스는 최소화
+
+#### shadcn/ui 컴포넌트
+- 컴포넌트는 copy-paste 방식으로 사용
+- 필요에 따라 커스터마이징
+- 일관된 디자인 시스템 유지
+- 접근성(a11y) 기본 지원
+- Radix UI primitives 기반
+
+#### JavaScript/TypeScript
+- 모던 JavaScript (ES6+) 사용
+- TypeScript 권장 (선택사항)
+- 컴포넌트 기반 구조화
+- 이벤트 위임 활용
+- 비동기 처리는 async/await 사용
+- 로딩 상태 및 에러 상태 처리
+
+### 테스팅
+- 단위 테스트 작성 필수
+- pytest 사용
+- 테스트 커버리지 80% 이상 목표
+- Mock 객체 활용하여 외부 API 테스트
+
+## 개발 워크플로우
+
+### 패키지 관리 (uv 사용)
+```bash
+# 프로젝트 초기화
+uv init
+
+# 의존성 설치
+uv sync
+
+# 새 패키지 추가
+uv add flask shadcn-ui tailwindcss
+
+# 개발 의존성 추가
+uv add --dev pytest black flake8
+
+# 앱 실행
+uv run python app.py
+
+# 테스트 실행
+uv run pytest
+
+# 가상환경 활성화
+source .venv/bin/activate  # Linux/Mac
+.venv\Scripts\activate     # Windows
+```
+
+### Tailwind CSS 설정
+```bash
+# Tailwind CSS 초기화
+npx tailwindcss init -p
+
+# CSS 컴파일 (개발)
+npx tailwindcss -i ./static/css/input.css -o ./static/css/output.css --watch
+
+# CSS 컴파일 (프로덕션)
+npx tailwindcss -i ./static/css/input.css -o ./static/css/output.css --minify
+```
+
+### 브랜치 전략
+- main: 프로덕션 배포
+- develop: 개발 통합
+- feature/*: 기능 개발
+- hotfix/*: 긴급 수정
+
+### 커밋 메시지 규칙
+```
+<type>: <subject>
+
+<body>
+
+<footer>
+```
+
+Types:
+- feat: 새로운 기능
+- fix: 버그 수정
+- docs: 문서 수정
+- style: 코드 포맷팅
+- refactor: 코드 리팩토링
+- test: 테스트 추가
+- chore: 빌드 작업
+- ui: UI/UX 변경
+
+### 데이터베이스 고려사항 (향후)
+- 초기: SQLite로 시작
+- 확장 시: PostgreSQL 마이그레이션
+- ORM: SQLAlchemy (필요시)
+- 간단한 쿼리는 직접 SQL 사용 가능
+
+## 성능 최적화
+- 응답 캐싱 구현
+- 비동기 처리 활용 (Celery)
+- 데이터베이스 쿼리 최적화
+- 정적 파일 CDN 활용
+- gzip 압축 활성화
+
+## 배포 준비사항
+- Gunicorn/uWSGI 사용
+- Nginx 리버스 프록시
+- SSL 인증서 설정
+- 환경 변수 관리
+- 로그 로테이션 설정
+- 모니터링 도구 설정
+
+## UI/UX 가이드라인
+
+### Tailwind 디자인 시스템
+- 색상 팔레트: slate, zinc (다크 모드)
+- 주요 색상: emerald-500 (액센트)
+- 간격: 4의 배수 사용 (p-4, m-8)
+- 그림자: shadow-sm, shadow-md 활용
+- 애니메이션: transition-all duration-200
+
+### shadcn/ui 통합
+- 컴포넌트 설치:
+  ```bash
+  npx shadcn-ui@latest init
+  npx shadcn-ui@latest add button
+  npx shadcn-ui@latest add card
+  npx shadcn-ui@latest add dialog
+  ```
+- 테마 커스터마이징은 globals.css에서
+- 컴포넌트는 components/ui 폴더에 복사
+
+### 반응형 디자인
+- Mobile First 접근
+- 브레이크포인트:
+  - sm: 640px
+  - md: 768px
+  - lg: 1024px
+  - xl: 1280px
+
+## 주의사항
+- 한국어 인코딩 문제 주의 (UTF-8)
+- 타임존 설정 (Asia/Seoul)
+- 민원 관련 법적 책임 고지
+- 개인정보 처리 방침 준수
+- 접근성 고려 (WCAG 2.1)
+- Tailwind JIT 모드 활용
+- PurgeCSS로 미사용 CSS 제거
+
+## AI 통합 가이드라인
+- API 호출 실패시 폴백 처리
+- 토큰 사용량 모니터링
+- 응답 시간 제한 설정
+- 컨텍스트 길이 관리
+- 프롬프트 엔지니어링 최적화
+
+## 유지보수 가이드
+- 정기적인 의존성 업데이트
+- 보안 패치 즉시 적용
+- 백업 정책 수립
+- 문서화 지속 업데이트
+- 코드 리뷰 프로세스
+
+## 확장 가능성
+- 다국어 지원 준비
+- 파일 업로드 기능
+- 실시간 채팅 (WebSocket)
+- 음성 인터페이스
+- 모바일 앱 연동
+
+## 파일 네이밍 컨벤션
+- Python 파일: snake_case.py
+- JavaScript/TypeScript: camelCase.js
+- React 컴포넌트: PascalCase.jsx
+- CSS/Tailwind: kebab-case.css
+- 테스트 파일: test_*.py 또는 *.test.js
+
+## 최소 시작 구조
+초기 개발 시 다음 최소 구조로 시작 가능:
+```
+fund/
+├── app.py           # 모든 로직 포함
+├── config.py        # 설정만 분리
+├── templates/
+│   └── index.html
+├── static/
+│   ├── css/
+│   └── js/
+└── .env
+```
+필요에 따라 점진적으로 api/, services/ 폴더로 분리

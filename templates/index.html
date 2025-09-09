@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="h-[95vh] w-[95%] max-w-[1800px] min-w-[1200px] glass rounded-[20px] shadow-2xl overflow-hidden animate-fade-in" id="app">
+    <div class="grid grid-cols-[260px_1fr] h-full">
+        <!-- 왼쪽 사이드바 -->
+        <aside class="gradient-primary p-5 flex flex-col overflow-y-auto relative">
+            <!-- 패턴 오버레이 -->
+            <div class="absolute inset-0 opacity-30 pointer-events-none" style="background-image: url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><defs><pattern id=%22robot-pattern%22 x=%220%22 y=%220%22 width=%2220%22 height=%2220%22 patternUnits=%22userSpaceOnUse%22><circle cx=%2210%22 cy=%2210%22 r=%221%22 fill=%22rgba(255,255,255,0.1)%22/></pattern></defs><rect width=%22100%22 height=%22100%22 fill=%22url(%23robot-pattern)%22/></svg>')"></div>
+            
+            <!-- 헤더 -->
+            <div class="relative z-10 mb-5">
+                <button id="newChatBtn" class="w-full px-5 py-4 gradient-secondary text-white rounded-[15px] text-base font-semibold hover-lift shadow-lg flex items-center justify-center gap-2">
+                    <i class="fas fa-plus"></i>
+                    <span>새 채팅</span>
+                </button>
+            </div>
+            
+            <!-- 채팅 히스토리 -->
+            <div class="relative z-10 flex-1 space-y-2" id="chatHistory">
+                <!-- 채팅 아이템 예시 -->
+                <div class="chat-item px-4 py-3 bg-white/10 rounded-xl text-white cursor-pointer hover:bg-white/20 hover:translate-x-1 transition-all duration-300 flex items-center gap-2">
+                    <i class="fas fa-comment text-yellow-400"></i>
+                    <span class="text-sm truncate">건축허가 문의</span>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- 중앙 채팅 영역 -->
+        <main class="bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col overflow-hidden relative">
+            <!-- 로봇 아이콘 배경 -->
+            <div class="absolute top-5 right-5 text-6xl opacity-10">🤖</div>
+            
+            <!-- 메시지 영역 -->
+            <div class="flex-1 p-5 overflow-y-auto space-y-4" id="chatMessages">
+                <!-- 웰컴 메시지 -->
+                <div class="message flex gap-3 animate-slide-in">
+                    <div class="w-10 h-10 rounded-full gradient-secondary flex items-center justify-center text-white flex-shrink-0">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="bg-white rounded-2xl rounded-tl-none p-4 shadow-md max-w-[80%]">
+                            <p class="text-gray-800">안녕하세요! 민원처리 도우미입니다. 어떤 도움이 필요하신가요?</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 입력 영역 -->
+            <div class="p-5 bg-white/50 backdrop-blur-sm border-t border-gray-200">
+                <!-- 민원 예시 버튼들 -->
+                <div class="mb-4" id="exampleButtons">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">자주 들어오는 민원 예시</h4>
+                    <div class="flex flex-wrap gap-2">
+                        <button class="example-btn px-4 py-2 bg-white rounded-full text-sm font-medium text-gray-700 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md" data-example="건축허가 관련 민원">
+                            🏗️ 건축허가
+                        </button>
+                        <button class="example-btn px-4 py-2 bg-white rounded-full text-sm font-medium text-gray-700 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md" data-example="도로교통 민원">
+                            🚗 도로교통
+                        </button>
+                        <button class="example-btn px-4 py-2 bg-white rounded-full text-sm font-medium text-gray-700 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md" data-example="환경오염 민원">
+                            🌱 환경오염
+                        </button>
+                        <button class="example-btn px-4 py-2 bg-white rounded-full text-sm font-medium text-gray-700 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md" data-example="행정처분 이의신청">
+                            📋 행정처분
+                        </button>
+                        <button class="example-btn px-4 py-2 bg-white rounded-full text-sm font-medium text-gray-700 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md" data-example="정보공개 청구">
+                            📄 정보공개
+                        </button>
+                        <button class="example-btn px-4 py-2 bg-white rounded-full text-sm font-medium text-gray-700 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md" data-example="공공시설 이용 민원">
+                            🏛️ 공공시설
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 입력창 -->
+                <div class="flex gap-3">
+                    <div class="flex-1 relative">
+                        <textarea 
+                            id="messageInput" 
+                            placeholder="민원 내용을 입력해주세요..." 
+                            maxlength="1000" 
+                            rows="1"
+                            class="w-full px-4 py-3 bg-white rounded-2xl shadow-sm border border-gray-200 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 resize-none transition-all duration-300"
+                        ></textarea>
+                    </div>
+                    <button id="sendButton" class="px-6 py-3 gradient-secondary text-white rounded-2xl font-semibold hover-lift shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 오른쪽 패널들 (슬라이드 오버레이) -->
+<div class="fixed right-0 top-0 h-full w-[400px] transform translate-x-full transition-transform duration-300 z-50" id="rightPanels">
+    <div class="h-full flex flex-col gap-4 p-4">
+        <!-- 답변 추천 패널 -->
+        <div class="flex-1 glass-dark rounded-2xl p-5 text-white overflow-hidden">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <span>💡</span>
+                    <span>답변추천</span>
+                </h3>
+                <button id="closePanelBtn" class="text-white/70 hover:text-white transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="overflow-y-auto h-[calc(100%-60px)]" id="answerContent">
+                <div class="flex items-center justify-center h-full">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin text-4xl mb-3"></i>
+                        <p class="text-white/70">답변을 생성하고 있습니다...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 mt-4">
+                <button class="flex-1 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-edit"></i>
+                    <span>수정</span>
+                </button>
+                <button class="flex-1 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-copy"></i>
+                    <span>복사</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 관련 법령 패널 -->
+        <div class="flex-1 glass-dark rounded-2xl p-5 text-white overflow-hidden">
+            <div class="mb-4">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <span>⚖️</span>
+                    <span>관련법령</span>
+                </h3>
+            </div>
+            
+            <div class="overflow-y-auto h-[calc(100%-60px)] space-y-3" id="lawContent">
+                <div class="bg-white/10 rounded-lg p-3">
+                    <h4 class="font-semibold mb-2">민원사무처리에 관한 법률</h4>
+                    <p class="text-sm text-white/80">제1조 (목적) 이 법은 민원사무의 처리에 관한 기본사항을 정함으로써...</p>
+                </div>
+                <div class="bg-white/10 rounded-lg p-3">
+                    <h4 class="font-semibold mb-2">행정절차법</h4>
+                    <p class="text-sm text-white/80">제1조 (목적) 이 법은 행정청의 처리가 국민의 권리와 의무에 직접적인 영향을 미치는...</p>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 mt-4">
+                <button class="flex-1 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-edit"></i>
+                    <span>수정</span>
+                </button>
+                <button class="flex-1 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-copy"></i>
+                    <span>복사</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}

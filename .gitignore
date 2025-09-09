@@ -1,4 +1,6 @@
+# ============================================
 # Python
+# ============================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -24,7 +26,9 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# ============================================
 # Virtual Environments
+# ============================================
 .env
 .venv
 env/
@@ -33,59 +37,97 @@ ENV/
 env.bak/
 venv.bak/
 
-# uv
+# ============================================
+# uv Package Manager
+# ============================================
 .venv/
-uv.lock
+# Note: uv.lock should be committed for reproducible builds
+# Remove the line below if you want to track dependencies
+# uv.lock
 
-# FastAPI
+# ============================================
+# Flask
+# ============================================
 instance/
 .webassets-cache
+flask_session/
 
+# ============================================
 # Database
+# ============================================
 *.db
 *.db-journal
 *.sqlite
 *.sqlite3
-data/*.db
-data/*.sqlite
+*.db-wal
+*.db-shm
+data/
 
+# ============================================
 # Environment Variables
+# ============================================
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.env
+config.py
+config.secret.py
 
+# ============================================
 # Logs
+# ============================================
 logs/
 *.log
-log/
 *.log.*
+log/
+!logs/.gitkeep
 
-# IDE - VS Code
+# ============================================
+# IDE and Editors
+# ============================================
+# VS Code
 .vscode/
 *.code-workspace
 .history/
 
-# IDE - PyCharm
+# PyCharm
 .idea/
 *.iml
 *.iws
 *.ipr
 
-# IDE - Cursor
+# Cursor
 .cursor/
+.cursorrules.local
 
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
 # OS Files
+# ============================================
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
+
+# Windows
 ehthumbs.db
 Thumbs.db
 desktop.ini
+*.lnk
 
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
 # Testing
+# ============================================
 htmlcov/
 .tox/
 .nox/
@@ -99,23 +141,48 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+test-results/
+test_*.py
+*_test.py
 
+# ============================================
 # Jupyter Notebook
+# ============================================
 .ipynb_checkpoints
 *.ipynb
 
+# ============================================
 # Documentation
+# ============================================
 docs/_build/
 docs/.doctrees
 site/
+mkdocs.yml
 
-# Node (if using any JS build tools)
+# ============================================
+# Frontend Build Tools
+# ============================================
+# Node.js
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# Temporary files
+# Tailwind CSS
+static/css/output.css
+static/css/styles.min.css
+
+# Build outputs
+static/dist/
+static/build/
+.parcel-cache/
+
+# ============================================
+# Temporary Files
+# ============================================
 *.tmp
 *.temp
 *.swp
@@ -124,29 +191,92 @@ yarn-error.log*
 .tmp/
 tmp/
 temp/
+cache/
 
-# Security - Never commit these
+# ============================================
+# Security - NEVER commit these
+# ============================================
 *.pem
 *.key
 *.crt
 *.pfx
+*.p12
 secrets/
 credentials/
+.secrets/
 
-# Backup files
+# ============================================
+# Backup Files
+# ============================================
 *.bak
 *.backup
 *.old
+*.orig
+backup/
 
-# Custom project specific
-/data/chatbot.db
-/data/*.db-wal
-/data/*.db-shm
-/static/uploads/
-/logs/*.log
-/improve/*.tmp
+# ============================================
+# Project Specific
+# ============================================
+# Uploaded files
+static/uploads/
+uploads/
 
-# LLM API Keys and Configs
+# Session files
+flask_session/
+sessions/
+
+# Generated files
+static/generated/
+
+# Design folder (development only)
+# Uncomment if you don't want to track design files
+# design/
+
+# Test data
+test_data/
+fixtures/
+
+# ============================================
+# API Keys and Sensitive Configs
+# ============================================
 openai_key.txt
 api_keys.json
+api_keys.yaml
 config.secret.json
+.openai
+OPENAI_API_KEY
+
+# ============================================
+# Claude Specific
+# ============================================
+.claude/settings.local.json
+CLAUDE.local.md
+
+# ============================================
+# Python Type Checking
+# ============================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# ============================================
+# Localization
+# ============================================
+*.mo
+*.pot
+
+# ============================================
+# Package Management
+# ============================================
+poetry.lock
+Pipfile.lock
+
+# ============================================
+# Keep these files
+# ============================================
+!.gitignore
+!.gitkeep
+!requirements.txt
+!pyproject.toml
