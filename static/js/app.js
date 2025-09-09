@@ -88,8 +88,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 타이핑 인디케이터 제거
                 hideTypingIndicator();
                 
-                // AI 응답 추가
-                addMessage(data.message, 'assistant');
+                // AI 응답 추가 (타이핑 효과와 함께)
+                addMessage(data.message, 'assistant', true);
                 
                 // 오른쪽 패널 표시 및 업데이트
                 showRightPanels();
@@ -116,8 +116,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // 메시지 추가 함수
-    function addMessage(text, sender) {
+    // Markdown 렌더링 설정
+    marked.setOptions({
+        breaks: true,
+        gfm: true,
+        highlight: function(code, lang) {
+            if (Prism.languages[lang]) {
+                return Prism.highlight(code, Prism.languages[lang], lang);
+            }
+            return code;
+        }
+    });
+    
+    // 메시지 추가 함수 (타이핑 효과 포함)
+    function addMessage(text, sender, useTypingEffect = false) {
         if (!chatMessages) return;
         
         const messageDiv = document.createElement('div');
@@ -134,21 +146,79 @@ document.addEventListener('DOMContentLoaded', function() {
                     <i class="fas fa-user"></i>
                 </div>
             `;
+            chatMessages.appendChild(messageDiv);
         } else {
-            messageDiv.innerHTML = `
+            // Assistant 메시지는 Markdown 렌더링
+            const avatarHtml = `
                 <div class="w-10 h-10 rounded-full gradient-secondary flex items-center justify-center text-white flex-shrink-0">
                     <i class="fas fa-robot"></i>
                 </div>
+            `;
+            
+            const messageContent = `
                 <div class="flex-1">
                     <div class="bg-white rounded-2xl rounded-tl-none p-4 shadow-md max-w-[80%]">
-                        <p class="text-gray-800">${escapeHtml(text)}</p>
+                        <div class="text-gray-800 markdown-content"></div>
                     </div>
                 </div>
             `;
+            
+            messageDiv.innerHTML = avatarHtml + messageContent;
+            chatMessages.appendChild(messageDiv);
+            
+            const contentDiv = messageDiv.querySelector('.markdown-content');
+            
+            if (useTypingEffect) {
+                // 타이핑 효과로 렌더링
+                typewriterEffect(text, contentDiv);
+            } else {
+                // 즉시 렌더링
+                renderMarkdown(text, contentDiv);
+            }
         }
         
-        chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // Markdown 렌더링 함수
+    function renderMarkdown(text, element) {
+        const htmlContent = marked.parse(text);
+        element.innerHTML = htmlContent;
+        
+        // 코드 하이라이팅 적용
+        element.querySelectorAll('pre code').forEach((block) => {
+            Prism.highlightElement(block);
+        });
+        
+        // 링크를 새 탭에서 열도록 설정
+        element.querySelectorAll('a').forEach((link) => {
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        });
+    }
+    
+    // 타이핑 효과 함수
+    function typewriterEffect(text, element, speed = 10) {
+        let index = 0;
+        let currentText = '';
+        const words = text.split(' ');
+        let wordIndex = 0;
+        
+        // 빠른 타이핑 효과 (단어 단위)
+        const typeInterval = setInterval(() => {
+            if (wordIndex < words.length) {
+                currentText += (wordIndex > 0 ? ' ' : '') + words[wordIndex];
+                renderMarkdown(currentText, element);
+                wordIndex++;
+                
+                // 스크롤 유지
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } else {
+                clearInterval(typeInterval);
+                // 최종 렌더링
+                renderMarkdown(text, element);
+            }
+        }, speed);
     }
     
     // HTML 이스케이프 함수
@@ -207,13 +277,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // 답변 패널 업데이트
+    // 답변 패널 업데이트 (Markdown 렌더링)
     function updateAnswerPanel(answer) {
         if (!answerContent) return;
         
-        answerContent.innerHTML = `
-            <div class="text-white/90 whitespace-pre-wrap">${escapeHtml(answer)}</div>
-        `;
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'text-white/90 markdown-content';
+        answerContent.innerHTML = '';
+        answerContent.appendChild(contentDiv);
+        
+        // Markdown 렌더링 (패널용 스타일 조정)
+        const htmlContent = marked.parse(answer);
+        contentDiv.innerHTML = htmlContent;
+        
+        // 패널에서의 스타일 조정
+        contentDiv.querySelectorAll('pre').forEach((block) => {
+            block.style.background = 'rgba(0, 0, 0, 0.3)';
+        });
+        
+        contentDiv.querySelectorAll('code:not([class*="language-"])').forEach((code) => {
+            code.style.background = 'rgba(255, 255, 255, 0.2)';
+            code.style.color = '#fff';
+        });
+        
+        contentDiv.querySelectorAll('blockquote').forEach((quote) => {
+            quote.style.borderLeftColor = '#fbbf24';
+            quote.style.background = 'rgba(251, 191, 36, 0.1)';
+            quote.style.color = 'rgba(255, 255, 255, 0.9)';
+        });
+        
+        // 코드 하이라이팅
+        contentDiv.querySelectorAll('pre code').forEach((block) => {
+            Prism.highlightElement(block);
+        });
     }
     
     // 법령 패널 업데이트
@@ -268,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                         <div class="flex-1">
                             <div class="bg-white rounded-2xl rounded-tl-none p-4 shadow-md max-w-[80%]">
-                                <p class="text-gray-800">안녕하세요! 민원처리 도우미입니다. 어떤 도움이 필요하신가요?</p>
+                                <div class="text-gray-800 markdown-content">안녕하세요! 민원처리 도우미입니다. 어떤 도움이 필요하신가요?</div>
                             </div>
                         </div>
                     </div>
@@ -330,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="flex-1">
                     <div class="bg-white rounded-2xl rounded-tl-none p-4 shadow-md max-w-[80%]">
-                        <p class="text-gray-800">안녕하세요! 민원처리 도우미입니다. 어떤 도움이 필요하신가요?</p>
+                        <div class="text-gray-800 markdown-content">안녕하세요! 민원처리 도우미입니다. 어떤 도움이 필요하신가요?</div>
                     </div>
                 </div>
             </div>
