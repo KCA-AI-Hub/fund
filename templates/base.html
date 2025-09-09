@@ -1,9 +1,13 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}민원처리 챗봇{% endblock %}</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,33 +17,68 @@
             theme: {
                 extend: {
                     colors: {
+                        background: 'oklch(var(--background) / <alpha-value>)',
+                        foreground: 'oklch(var(--foreground) / <alpha-value>)',
+                        card: {
+                            DEFAULT: 'oklch(var(--card) / <alpha-value>)',
+                            foreground: 'oklch(var(--card-foreground) / <alpha-value>)'
+                        },
+                        popover: {
+                            DEFAULT: 'oklch(var(--popover) / <alpha-value>)',
+                            foreground: 'oklch(var(--popover-foreground) / <alpha-value>)'
+                        },
                         primary: {
-                            50: '#f5f3ff',
-                            100: '#ede9fe',
-                            200: '#ddd6fe',
-                            300: '#c4b5fd',
-                            400: '#a78bfa',
-                            500: '#8b5cf6',
-                            600: '#7c3aed',
-                            700: '#6d28d9',
-                            800: '#5b21b6',
-                            900: '#4c1d95',
+                            DEFAULT: 'oklch(var(--primary) / <alpha-value>)',
+                            foreground: 'oklch(var(--primary-foreground) / <alpha-value>)'
                         },
                         secondary: {
-                            50: '#eff6ff',
-                            100: '#dbeafe',
-                            200: '#bfdbfe',
-                            300: '#93c5fd',
-                            400: '#60a5fa',
-                            500: '#3b82f6',
-                            600: '#2563eb',
-                            700: '#1d4ed8',
-                            800: '#1e40af',
-                            900: '#1e3a8a',
+                            DEFAULT: 'oklch(var(--secondary) / <alpha-value>)',
+                            foreground: 'oklch(var(--secondary-foreground) / <alpha-value>)'
+                        },
+                        muted: {
+                            DEFAULT: 'oklch(var(--muted) / <alpha-value>)',
+                            foreground: 'oklch(var(--muted-foreground) / <alpha-value>)'
+                        },
+                        accent: {
+                            DEFAULT: 'oklch(var(--accent) / <alpha-value>)',
+                            foreground: 'oklch(var(--accent-foreground) / <alpha-value>)'
+                        },
+                        destructive: {
+                            DEFAULT: 'oklch(var(--destructive) / <alpha-value>)',
+                            foreground: 'oklch(var(--destructive-foreground) / <alpha-value>)'
+                        },
+                        border: 'oklch(var(--border) / <alpha-value>)',
+                        input: 'oklch(var(--input) / <alpha-value>)',
+                        ring: 'oklch(var(--ring) / <alpha-value>)',
+                        sidebar: {
+                            DEFAULT: 'oklch(var(--sidebar) / <alpha-value>)',
+                            foreground: 'oklch(var(--sidebar-foreground) / <alpha-value>)',
+                            primary: 'oklch(var(--sidebar-primary) / <alpha-value>)',
+                            'primary-foreground': 'oklch(var(--sidebar-primary-foreground) / <alpha-value>)',
+                            accent: 'oklch(var(--sidebar-accent) / <alpha-value>)',
+                            'accent-foreground': 'oklch(var(--sidebar-accent-foreground) / <alpha-value>)',
+                            border: 'oklch(var(--sidebar-border) / <alpha-value>)',
+                            ring: 'oklch(var(--sidebar-ring) / <alpha-value>)'
                         }
                     },
                     fontFamily: {
-                        'sans': ['Noto Sans KR', 'ui-sans-serif', 'system-ui'],
+                        'sans': ['DM Sans', 'Noto Sans KR', 'sans-serif'],
+                        'mono': ['Menlo', 'monospace'],
+                    },
+                    borderRadius: {
+                        lg: 'var(--radius)',
+                        md: 'calc(var(--radius) - 2px)',
+                        sm: 'calc(var(--radius) - 4px)',
+                    },
+                    boxShadow: {
+                        '2xs': 'var(--shadow-2xs)',
+                        'xs': 'var(--shadow-xs)',
+                        'sm': 'var(--shadow-sm)',
+                        'DEFAULT': 'var(--shadow)',
+                        'md': 'var(--shadow-md)',
+                        'lg': 'var(--shadow-lg)',
+                        'xl': 'var(--shadow-xl)',
+                        '2xl': 'var(--shadow-2xl)',
                     },
                     animation: {
                         'slide-in': 'slideIn 0.3s ease-out',
@@ -55,23 +94,94 @@
                             '0%': { opacity: '0' },
                             '100%': { opacity: '1' },
                         }
-                    },
-                    backdropBlur: {
-                        xs: '2px',
                     }
                 }
             }
         }
     </script>
     
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-    
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- Custom CSS -->
     <style>
+        :root {
+            --background: 0.9529 0.0146 102.4597;
+            --foreground: 0.4063 0.0255 40.3627;
+            --card: 0.9529 0.0146 102.4597;
+            --card-foreground: 0.4063 0.0255 40.3627;
+            --popover: 1.0000 0 0;
+            --popover-foreground: 0.4063 0.0255 40.3627;
+            --primary: 0.6083 0.0623 44.3588;
+            --primary-foreground: 1.0000 0 0;
+            --secondary: 0.7473 0.0387 80.5476;
+            --secondary-foreground: 1.0000 0 0;
+            --muted: 0.8502 0.0389 49.0874;
+            --muted-foreground: 0.5416 0.0512 37.2132;
+            --accent: 0.8502 0.0389 49.0874;
+            --accent-foreground: 0.4063 0.0255 40.3627;
+            --destructive: 0.2225 0.0098 52.9636;
+            --destructive-foreground: 1.0000 0 0;
+            --border: 0.7473 0.0387 80.5476;
+            --input: 0.7473 0.0387 80.5476;
+            --ring: 0.6083 0.0623 44.3588;
+            --sidebar: 0.8903 0.0278 49.5658;
+            --sidebar-foreground: 0.4063 0.0255 40.3627;
+            --sidebar-primary: 0.6083 0.0623 44.3588;
+            --sidebar-primary-foreground: 1.0000 0 0;
+            --sidebar-accent: 0.7272 0.0539 52.3320;
+            --sidebar-accent-foreground: 1.0000 0 0;
+            --sidebar-border: 0.6440 0.0405 52.3917;
+            --sidebar-ring: 0.6083 0.0623 44.3588;
+            --radius: 0.5rem;
+            --shadow-2xs: 2px 2px 0px 0px hsl(20 18% 51% / 0.06);
+            --shadow-xs: 2px 2px 0px 0px hsl(20 18% 51% / 0.06);
+            --shadow-sm: 2px 2px 0px 0px hsl(20 18% 51% / 0.11), 2px 1px 2px -1px hsl(20 18% 51% / 0.11);
+            --shadow: 2px 2px 0px 0px hsl(20 18% 51% / 0.11), 2px 1px 2px -1px hsl(20 18% 51% / 0.11);
+            --shadow-md: 2px 2px 0px 0px hsl(20 18% 51% / 0.11), 2px 2px 4px -1px hsl(20 18% 51% / 0.11);
+            --shadow-lg: 2px 2px 0px 0px hsl(20 18% 51% / 0.11), 2px 4px 6px -1px hsl(20 18% 51% / 0.11);
+            --shadow-xl: 2px 2px 0px 0px hsl(20 18% 51% / 0.11), 2px 8px 10px -1px hsl(20 18% 51% / 0.11);
+            --shadow-2xl: 2px 2px 0px 0px hsl(20 18% 51% / 0.28);
+        }
+
+        .dark {
+            --background: 0.2721 0.0141 48.1783;
+            --foreground: 0.9529 0.0146 102.4597;
+            --card: 0.3291 0.0156 50.8936;
+            --card-foreground: 0.9529 0.0146 102.4597;
+            --popover: 0.3291 0.0156 50.8936;
+            --popover-foreground: 0.9529 0.0146 102.4597;
+            --primary: 0.7272 0.0539 52.3320;
+            --primary-foreground: 0.2721 0.0141 48.1783;
+            --secondary: 0.5416 0.0512 37.2132;
+            --secondary-foreground: 0.9529 0.0146 102.4597;
+            --muted: 0.4063 0.0255 40.3627;
+            --muted-foreground: 0.7575 0.0380 50.8610;
+            --accent: 0.7473 0.0387 80.5476;
+            --accent-foreground: 0.2721 0.0141 48.1783;
+            --destructive: 0.6875 0.1420 21.4566;
+            --destructive-foreground: 0.2721 0.0141 48.1783;
+            --border: 0.4063 0.0255 40.3627;
+            --input: 0.4063 0.0255 40.3627;
+            --ring: 0.7272 0.0539 52.3320;
+            --sidebar: 0.2225 0.0098 52.9636;
+            --sidebar-foreground: 0.9529 0.0146 102.4597;
+            --sidebar-primary: 0.7272 0.0539 52.3320;
+            --sidebar-primary-foreground: 0.2225 0.0098 52.9636;
+            --sidebar-accent: 0.7473 0.0387 80.5476;
+            --sidebar-accent-foreground: 0.2225 0.0098 52.9636;
+            --sidebar-border: 0.4063 0.0255 40.3627;
+            --sidebar-ring: 0.7272 0.0539 52.3320;
+            --shadow-2xs: 2px 2px 0px 0px hsl(20 18% 30% / 0.06);
+            --shadow-xs: 2px 2px 0px 0px hsl(20 18% 30% / 0.06);
+            --shadow-sm: 2px 2px 0px 0px hsl(20 18% 30% / 0.11), 2px 1px 2px -1px hsl(20 18% 30% / 0.11);
+            --shadow: 2px 2px 0px 0px hsl(20 18% 30% / 0.11), 2px 1px 2px -1px hsl(20 18% 30% / 0.11);
+            --shadow-md: 2px 2px 0px 0px hsl(20 18% 30% / 0.11), 2px 2px 4px -1px hsl(20 18% 30% / 0.11);
+            --shadow-lg: 2px 2px 0px 0px hsl(20 18% 30% / 0.11), 2px 4px 6px -1px hsl(20 18% 30% / 0.11);
+            --shadow-xl: 2px 2px 0px 0px hsl(20 18% 30% / 0.11), 2px 8px 10px -1px hsl(20 18% 30% / 0.11);
+            --shadow-2xl: 2px 2px 0px 0px hsl(20 18% 30% / 0.28);
+        }
+        
         /* 스크롤바 스타일링 */
         ::-webkit-scrollbar {
             width: 8px;
@@ -79,43 +189,17 @@
         }
         
         ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
+            background: oklch(var(--muted) / 0.1);
+            border-radius: var(--radius);
         }
         
         ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 10px;
+            background: oklch(var(--primary) / 0.8);
+            border-radius: var(--radius);
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-        }
-        
-        /* 그라디언트 배경 */
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        
-        .gradient-primary {
-            background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%);
-        }
-        
-        .gradient-secondary {
-            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
-        }
-        
-        /* 글래스모피즘 효과 */
-        .glass {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-        
-        .glass-dark {
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            background: oklch(var(--primary));
         }
         
         /* 애니메이션 효과 */
@@ -125,7 +209,6 @@
         
         .hover-lift:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 25px rgba(59, 130, 246, 0.6);
         }
         
         /* 메시지 버블 효과 */
@@ -260,11 +343,35 @@
             white-space: nowrap;
             animation: typewriter 0.5s steps(30, end) forwards;
         }
+        
+        /* 사이드바 토글 스타일 */
+        .sidebar-collapsed {
+            margin-left: -260px;
+        }
+        
+        .layout-expanded {
+            grid-template-columns: 1fr !important;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar-mobile {
+                position: fixed;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                z-index: 40;
+                width: 260px;
+            }
+            
+            .sidebar-mobile.sidebar-collapsed {
+                margin-left: -260px;
+            }
+        }
     </style>
     
     {% block head %}{% endblock %}
 </head>
-<body class="font-sans gradient-bg h-screen overflow-hidden flex justify-center items-center">
+<body class="font-sans bg-background text-foreground h-screen overflow-hidden flex justify-center items-center transition-colors duration-200">
     {% block content %}{% endblock %}
     
     <!-- jQuery (선택사항) -->
