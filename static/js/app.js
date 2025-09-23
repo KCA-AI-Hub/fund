@@ -1,126 +1,187 @@
-// Session ID 관리
-let sessionId = localStorage.getItem('sessionId') || null;
-
-// DOM이 로드된 후 실행
-document.addEventListener('DOMContentLoaded', function() {
-    const messageInput = document.getElementById('messageInput');
-    const sendButton = document.getElementById('sendButton');
-    const chatMessages = document.getElementById('chatMessages');
-    const chatHistory = document.getElementById('chatHistory');
-    const newChatBtn = document.getElementById('newChatBtn');
-    const answerContent = document.getElementById('answerContent');
-    const lawContent = document.getElementById('lawContent');
-    const rightPanels = document.getElementById('rightPanels');
-    const closePanelBtn = document.getElementById('closePanelBtn');
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebar = document.getElementById('sidebar');
-    const mainLayout = document.getElementById('mainLayout');
-    
-    // 사이드바 상태 복원
-    const sidebarState = localStorage.getItem('sidebarCollapsed') === 'true';
-    const toggleIcon = sidebarToggle ? sidebarToggle.querySelector('i') : null;
-    
-    if (sidebarState && sidebar && mainLayout) {
-        sidebar.classList.add('hidden');
-        mainLayout.classList.remove('grid-cols-[280px_1fr]');
-        mainLayout.classList.add('grid-cols-1');
-        if (toggleIcon) {
-            toggleIcon.classList.remove('fa-angle-double-left');
-            toggleIcon.classList.add('fa-angle-double-right');
-        }
-        if (sidebarToggle) {
-            sidebarToggle.style.left = '-1.25rem';  // -left-5 in rem
-        }
-    } else {
-        // 기본 상태 (사이드바 열림)
-        if (toggleIcon) {
-            toggleIcon.classList.remove('fa-angle-double-right');
-            toggleIcon.classList.add('fa-angle-double-left');
-        }
+class ComplaintChatbot {
+    constructor() {
+        this.app = document.getElementById('app');
+        this.chatMessages = document.getElementById('chatMessages');
+        this.messageInput = document.getElementById('messageInput');
+        this.sendButton = document.getElementById('sendButton');
+        this.answerPanel = document.getElementById('answerPanel');
+        this.lawPanel = document.getElementById('lawPanel');
+        this.answerContent = document.getElementById('answerContent');
+        this.lawContent = document.getElementById('lawContent');
+        this.newChatBtn = document.getElementById('newChatBtn');
+        this.chatHistory = document.getElementById('chatHistory');
+        this.rightPanels = document.getElementById('rightPanels');
+        
+        // 액션 버튼들
+        this.editAnswerBtn = document.getElementById('editAnswerBtn');
+        this.copyAnswerBtn = document.getElementById('copyAnswerBtn');
+        this.editLawBtn = document.getElementById('editLawBtn');
+        this.copyLawBtn = document.getElementById('copyLawBtn');
+        
+        // 법령 편집 패널 요소들
+        this.lawEditPanel = document.getElementById('lawEditPanel');
+        this.guidelineStep = document.getElementById('guidelineStep');
+        this.articleStep = document.getElementById('articleStep');
+        this.clauseStep = document.getElementById('clauseStep');
+        this.guidelineList = document.getElementById('guidelineList');
+        this.articleList = document.getElementById('articleList');
+        this.clauseList = document.getElementById('clauseList');
+        this.selectedGuidelineTitle = document.getElementById('selectedGuidelineTitle');
+        this.selectedArticleTitle = document.getElementById('selectedArticleTitle');
+        
+        // Session ID 관리 (백엔드 연결용)
+        this.sessionId = localStorage.getItem('sessionId') || null;
+        
+        this.messages = [];
+        this.chatSessions = [];
+        this.currentSessionId = null;
+        this.generateAnswerBtn = null;
+        this.isEditMode = false;
+        this.currentLawEditStep = 1;
+        this.selectedClauses = []; // 선택된 항들
+        this.currentSelectedGuideline = null; // 현재 선택된 지침
+        this.currentSelectedArticle = null; // 현재 선택된 조항
+        
+        this.initializeEventListeners();
+        this.createNewChat();
     }
     
-    // 사이드바 토글 기능
-    if (sidebarToggle && sidebar && mainLayout) {
-        sidebarToggle.addEventListener('click', function() {
-            const isCollapsed = sidebar.classList.toggle('hidden');
-            const icon = this.querySelector('i');
-            
-            if (isCollapsed) {
-                // 사이드바 숨김
-                mainLayout.classList.remove('grid-cols-[280px_1fr]');
-                mainLayout.classList.add('grid-cols-1');
-                if (icon) {
-                    icon.classList.remove('fa-angle-double-left');
-                    icon.classList.add('fa-angle-double-right');
+    initializeEventListeners() {
+        if (this.sendButton) {
+            this.sendButton.addEventListener('click', () => this.sendMessage());
+        }
+        
+        if (this.messageInput) {
+            this.messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
                 }
-                this.style.left = '-1.25rem';  // -left-5 in rem
-                localStorage.setItem('sidebarCollapsed', 'true');
-            } else {
-                // 사이드바 표시
-                mainLayout.classList.remove('grid-cols-1');
-                mainLayout.classList.add('grid-cols-[280px_1fr]');
-                if (icon) {
-                    icon.classList.remove('fa-angle-double-right');
-                    icon.classList.add('fa-angle-double-left');
+            });
+            this.messageInput.addEventListener('input', () => this.autoResizeTextarea());
+        }
+        
+        if (this.newChatBtn) {
+            this.newChatBtn.addEventListener('click', () => this.createNewChat());
+        }
+        
+        // 예시 버튼 이벤트 리스너
+        document.querySelectorAll('.example-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const example = btn.getAttribute('data-example');
+                if (this.messageInput) {
+                    this.messageInput.value = example;
+                    this.messageInput.focus();
+                    this.autoResizeTextarea();
                 }
-                this.style.left = '-1.25rem';  // Keep same position
-                localStorage.setItem('sidebarCollapsed', 'false');
-            }
-        });
-    }
-    
-    // 메시지 입력 자동 크기 조절
-    if (messageInput) {
-        messageInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
         });
         
-        // 엔터키로 전송
-        messageInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
+        // 액션 버튼 이벤트 리스너
+        if (this.editAnswerBtn) {
+            this.editAnswerBtn.addEventListener('click', () => this.toggleEditMode('answer'));
+        }
+        if (this.copyAnswerBtn) {
+            this.copyAnswerBtn.addEventListener('click', () => this.copyContent('answer'));
+        }
+        if (this.editLawBtn) {
+            this.editLawBtn.addEventListener('click', () => this.showLawEditPanel());
+        }
+        if (this.copyLawBtn) {
+            this.copyLawBtn.addEventListener('click', () => this.copyContent('law'));
+        }
+        
+        // 법령 편집 패널 이벤트 리스너
+        this.initializeLawEditEventListeners();
     }
     
-    // 예시 버튼 클릭 처리
-    document.querySelectorAll('.example-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const example = this.getAttribute('data-example');
-            if (messageInput) {
-                messageInput.value = example;
-                messageInput.focus();
-                messageInput.dispatchEvent(new Event('input'));
-            }
-        });
-    });
-    
-    // 메시지 전송 함수
-    async function sendMessage() {
-        if (!messageInput) return;
+    createNewChat() {
+        if (this.messages.length > 0) {
+            this.saveChatSession();
+        }
+        this.currentSessionId = Date.now();
+        this.sessionId = null;
+        localStorage.removeItem('sessionId');
+        this.messages = [];
         
-        const message = messageInput.value.trim();
+        if (this.chatMessages) {
+            this.chatMessages.innerHTML = '';
+        }
+        
+        if (this.chatHistory) {
+            this.addChatHistoryItem(`새 채팅 ${this.chatHistory.children.length + 1}`);
+        }
+        this.addWelcomeMessage();
+        
+        // 패널 닫기
+        this.hidePanels();
+        
+        // 답변생성 버튼 제거
+        this.removeGenerateAnswerBtn();
+        
+        // 수정 모드 해제
+        this.exitEditMode();
+        
+        // 새 세션 생성 (백엔드 API)
+        this.createNewSession();
+    }
+    
+    // 백엔드 새 세션 생성
+    async createNewSession() {
+        try {
+            const response = await fetch('/api/new-session', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            if (data.session_id) {
+                this.sessionId = data.session_id;
+                localStorage.setItem('sessionId', this.sessionId);
+            }
+        } catch (error) {
+            console.error('Error creating new session:', error);
+        }
+    }
+    
+    addWelcomeMessage() {
+        const welcomeMessage = {
+            type: 'bot',
+            content: '안녕하세요! 민원처리 챗봇입니다. 어떤 민원에 대해 문의하시나요? 자주 들어오는 민원 예시를 클릭하거나 직접 입력해주세요.',
+            timestamp: new Date()
+        };
+        this.addMessage(welcomeMessage);
+    }
+    
+    async sendMessage() {
+        if (!this.messageInput) return;
+        
+        const message = this.messageInput.value.trim();
         if (!message) return;
         
         // 버튼 비활성화
-        if (sendButton) {
-            sendButton.disabled = true;
+        if (this.sendButton) {
+            this.sendButton.disabled = true;
         }
         
         // 사용자 메시지 추가
-        addMessage(message, 'user');
+        const userMessage = {
+            type: 'user',
+            content: message,
+            timestamp: new Date()
+        };
+        this.addMessage(userMessage);
+        
+        // 답변생성 버튼 제거 (사용자가 새 메시지 입력)
+        this.removeGenerateAnswerBtn();
         
         // 입력창 초기화
-        messageInput.value = '';
-        messageInput.style.height = 'auto';
+        this.messageInput.value = '';
+        this.autoResizeTextarea();
         
         // 타이핑 인디케이터 표시
-        showTypingIndicator();
+        this.showTypingIndicator();
         
         try {
-            // API 호출
+            // 백엔드 API 호출
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {
@@ -128,7 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({
                     message: message,
-                    session_id: sessionId
+                    session_id: this.sessionId
                 })
             });
             
@@ -137,620 +198,792 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 // 세션 ID 저장
                 if (data.session_id) {
-                    sessionId = data.session_id;
-                    localStorage.setItem('sessionId', sessionId);
+                    this.sessionId = data.session_id;
+                    localStorage.setItem('sessionId', this.sessionId);
                 }
                 
                 // 타이핑 인디케이터 제거
-                hideTypingIndicator();
+                this.hideTypingIndicator();
                 
-                // AI 응답 추가 (타이핑 효과와 함께)
-                addMessage(data.message, 'assistant', true);
+                // AI 응답 추가
+                const botMessage = {
+                    type: 'bot',
+                    content: data.message,
+                    timestamp: new Date()
+                };
+                this.addMessage(botMessage);
                 
-                // 오른쪽 패널 표시 및 업데이트
-                showRightPanels();
+                // 답변생성 버튼 표시
+                setTimeout(() => {
+                    this.showGenerateAnswerBtn();
+                }, 500);
                 
-                if (data.suggested_answer) {
-                    updateAnswerPanel(data.suggested_answer);
-                }
-                
-                if (data.related_laws) {
-                    updateLawPanel(data.related_laws);
-                }
             } else {
-                hideTypingIndicator();
-                addMessage('죄송합니다. 오류가 발생했습니다. 다시 시도해주세요.', 'assistant');
+                this.hideTypingIndicator();
+                this.simulateBotResponse(message);
             }
         } catch (error) {
             console.error('Error:', error);
-            hideTypingIndicator();
-            addMessage('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'assistant');
+            this.hideTypingIndicator();
+            // 백엔드 연결 실패시 시뮬레이션 모드
+            this.simulateBotResponse(message);
         } finally {
-            if (sendButton) {
-                sendButton.disabled = false;
+            if (this.sendButton) {
+                this.sendButton.disabled = false;
             }
         }
     }
     
-    // Markdown 렌더링 설정
-    marked.setOptions({
-        breaks: true,
-        gfm: true,
-        highlight: function(code, lang) {
-            if (Prism.languages[lang]) {
-                return Prism.highlight(code, Prism.languages[lang], lang);
-            }
-            return code;
+    simulateBotResponse(userMessage) {
+        const botResponse = this.generateBotResponse(userMessage);
+        const botMessage = {
+            type: 'bot',
+            content: botResponse,
+            timestamp: new Date()
+        };
+        this.addMessage(botMessage);
+        
+        // 챗봇 답변 완료 후 답변생성 버튼 표시
+        setTimeout(() => {
+            this.showGenerateAnswerBtn();
+        }, 500);
+    }
+    
+    generateBotResponse(userMessage) {
+        const responses = [
+            "해당 민원에 대해 자세히 살펴보겠습니다. 구체적인 상황을 더 설명해주시면 더 정확한 답변을 드릴 수 있습니다.",
+            "이 민원은 관련 법령에 따라 처리됩니다. 답변생성 버튼을 클릭하시면 상세한 답변과 관련법령을 확인할 수 있습니다.",
+            "민원 내용을 검토한 결과, 다음과 같은 절차로 진행하시면 됩니다. 자세한 내용은 답변생성 버튼을 통해 확인해주세요.",
+            "해당 민원은 행정절차법에 따라 처리 가능합니다. 구체적인 처리 방법과 관련법령을 답변생성 버튼을 통해 안내드리겠습니다."
+        ];
+        return responses[Math.floor(Math.random() * responses.length)];
+    }
+    
+    addMessage(message) {
+        this.messages.push(message);
+        
+        if (!this.chatMessages) return;
+        
+        const messageElement = document.createElement('div');
+        messageElement.className = `message ${message.type}`;
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.innerHTML = message.type === 'user' ? '👤' : '🤖';
+        
+        const content = document.createElement('div');
+        content.className = 'message-content';
+        content.textContent = message.content;
+        
+        messageElement.appendChild(avatar);
+        messageElement.appendChild(content);
+        
+        this.chatMessages.appendChild(messageElement);
+        this.scrollToBottom();
+    }
+    
+    scrollToBottom() {
+        if (this.chatMessages) {
+            this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
-    });
-    
-    // 메시지 추가 함수 (타이핑 효과 포함)
-    function addMessage(text, sender, useTypingEffect = false) {
-        if (!chatMessages) return;
-        
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message flex gap-3 animate-slide-in';
-        
-        if (sender === 'user') {
-            messageDiv.innerHTML = `
-                <div class="flex-1 flex justify-end">
-                    <div class="bg-primary text-primary-foreground rounded-2xl rounded-tr-none p-4 shadow-sm max-w-[80%] border border-primary/20">
-                        <p>${escapeHtml(text)}</p>
-                    </div>
-                </div>
-                <div class="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground flex-shrink-0 shadow-sm">
-                    <i class="fas fa-user"></i>
-                </div>
-            `;
-            chatMessages.appendChild(messageDiv);
-        } else {
-            // Assistant 메시지는 Markdown 렌더링
-            const avatarHtml = `
-                <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground flex-shrink-0 shadow-sm">
-                    <i class="fas fa-robot"></i>
-                </div>
-            `;
-            
-            const messageContent = `
-                <div class="flex-1">
-                    <div class="bg-card border border-border rounded-2xl rounded-tl-none p-4 shadow-sm max-w-[80%]">
-                        <div class="text-card-foreground markdown-content"></div>
-                    </div>
-                </div>
-            `;
-            
-            messageDiv.innerHTML = avatarHtml + messageContent;
-            chatMessages.appendChild(messageDiv);
-            
-            const contentDiv = messageDiv.querySelector('.markdown-content');
-            
-            if (useTypingEffect) {
-                // 타이핑 효과로 렌더링
-                typewriterEffect(text, contentDiv);
-            } else {
-                // 즉시 렌더링
-                renderMarkdown(text, contentDiv);
-            }
-        }
-        
-        chatMessages.scrollTop = chatMessages.scrollHeight;
     }
     
-    // Markdown 렌더링 함수
-    function renderMarkdown(text, element) {
-        const htmlContent = marked.parse(text);
-        element.innerHTML = htmlContent;
+    autoResizeTextarea() {
+        if (!this.messageInput) return;
         
-        // 코드 하이라이팅 적용
-        element.querySelectorAll('pre code').forEach((block) => {
-            Prism.highlightElement(block);
-        });
-        
-        // 링크를 새 탭에서 열도록 설정
-        element.querySelectorAll('a').forEach((link) => {
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-        });
-    }
-    
-    // 타이핑 효과 함수
-    function typewriterEffect(text, element, speed = 10) {
-        let index = 0;
-        let currentText = '';
-        const words = text.split(' ');
-        let wordIndex = 0;
-        
-        // 빠른 타이핑 효과 (단어 단위)
-        const typeInterval = setInterval(() => {
-            if (wordIndex < words.length) {
-                currentText += (wordIndex > 0 ? ' ' : '') + words[wordIndex];
-                renderMarkdown(currentText, element);
-                wordIndex++;
-                
-                // 스크롤 유지
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            } else {
-                clearInterval(typeInterval);
-                // 최종 렌더링
-                renderMarkdown(text, element);
-            }
-        }, speed);
-    }
-    
-    // HTML 이스케이프 함수
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        const textarea = this.messageInput;
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
     }
     
     // 타이핑 인디케이터 표시
-    function showTypingIndicator() {
-        if (!chatMessages) return;
+    showTypingIndicator() {
+        if (!this.chatMessages) return;
         
         const typingDiv = document.createElement('div');
         typingDiv.id = 'typingIndicator';
-        typingDiv.className = 'message flex gap-3';
-        typingDiv.innerHTML = `
-            <div class="w-10 h-10 rounded-full gradient-secondary flex items-center justify-center text-white flex-shrink-0">
-                <i class="fas fa-robot"></i>
+        typingDiv.className = 'message bot';
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.innerHTML = '🤖';
+        
+        const content = document.createElement('div');
+        content.className = 'message-content';
+        content.innerHTML = `
+            <div style="display: flex; gap: 4px; align-items: center;">
+                <span style="width: 8px; height: 8px; background: #6b7280; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out;"></span>
+                <span style="width: 8px; height: 8px; background: #6b7280; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out; animation-delay: -0.32s;"></span>
+                <span style="width: 8px; height: 8px; background: #6b7280; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out; animation-delay: -0.16s;"></span>
             </div>
-            <div class="flex-1">
-                <div class="bg-white rounded-2xl rounded-tl-none p-4 shadow-md w-20">
-                    <div class="flex gap-1">
-                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
-                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
-                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
-                    </div>
-                </div>
-            </div>
+            <style>
+                @keyframes bounce {
+                    0%, 80%, 100% { transform: scale(0); }
+                    40% { transform: scale(1); }
+                }
+            </style>
         `;
-        chatMessages.appendChild(typingDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        typingDiv.appendChild(avatar);
+        typingDiv.appendChild(content);
+        
+        this.chatMessages.appendChild(typingDiv);
+        this.scrollToBottom();
     }
     
     // 타이핑 인디케이터 제거
-    function hideTypingIndicator() {
+    hideTypingIndicator() {
         const typingIndicator = document.getElementById('typingIndicator');
         if (typingIndicator) {
             typingIndicator.remove();
         }
     }
     
-    // 오른쪽 패널 표시
-    function showRightPanels() {
-        if (rightPanels) {
-            rightPanels.classList.remove('translate-x-full');
-            rightPanels.classList.add('translate-x-0');
-            
-            // 채팅 영역 크기 조정
-            const app = document.getElementById('app');
-            if (app && !lawEditPanel.classList.contains('translate-x-0')) {
-                app.style.width = 'calc(100% - 500px)';
-                app.style.marginRight = '460px';
-                app.style.marginLeft = '40px';
+    // 답변생성 버튼 표시
+    showGenerateAnswerBtn() {
+        // 이미 버튼이 있다면 제거
+        this.removeGenerateAnswerBtn();
+        
+        // 새로운 답변생성 버튼 생성
+        this.generateAnswerBtn = document.createElement('button');
+        this.generateAnswerBtn.id = 'generateAnswerBtn';
+        this.generateAnswerBtn.className = 'generate-answer-btn';
+        this.generateAnswerBtn.innerHTML = '<i class="fas fa-magic"></i> 답변생성';
+        
+        // 버튼을 채팅 메시지 영역 하단에 추가
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'generate-answer-container';
+        buttonContainer.appendChild(this.generateAnswerBtn);
+        
+        this.chatMessages.appendChild(buttonContainer);
+        
+        // 이벤트 리스너 추가
+        this.generateAnswerBtn.addEventListener('click', () => this.togglePanels());
+        
+        // 스크롤을 버튼이 보이도록 조정
+        this.scrollToBottom();
+    }
+    
+    // 답변생성 버튼 제거
+    removeGenerateAnswerBtn() {
+        if (this.generateAnswerBtn) {
+            const buttonContainer = this.generateAnswerBtn.closest('.generate-answer-container');
+            if (buttonContainer) {
+                buttonContainer.remove();
             }
+            this.generateAnswerBtn = null;
         }
     }
     
-    // 오른쪽 패널 숨기기
-    function hideRightPanels() {
-        if (rightPanels) {
-            rightPanels.classList.remove('translate-x-0');
-            rightPanels.classList.add('translate-x-full');
-            
-            // 채팅 영역 크기 복원
-            const app = document.getElementById('app');
-            if (app && !lawEditPanel.classList.contains('translate-x-0')) {
-                app.style.width = 'calc(100% - 80px)';
-                app.style.marginRight = 'auto';
-                app.style.marginLeft = 'auto';
-            }
+    // 패널 토글 (핵심 기능)
+    togglePanels() {
+        if (document.body.classList.contains('has-panels')) {
+            this.hidePanels();
+        } else {
+            this.showPanels();
         }
     }
     
-    // 답변 패널 업데이트 (Markdown 렌더링)
-    function updateAnswerPanel(answer) {
-        if (!answerContent) return;
+    showPanels() {
+        document.body.classList.add('has-panels');
+        this.generateAnswer();
+        this.updateLawContent();
         
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'text-card-foreground markdown-content';
-        answerContent.innerHTML = '';
-        answerContent.appendChild(contentDiv);
-        
-        // Markdown 렌더링
-        const htmlContent = marked.parse(answer);
-        contentDiv.innerHTML = htmlContent;
-        
-        // 패널에서의 스타일 조정 - 디자인 시스템 클래스 적용
-        contentDiv.querySelectorAll('pre').forEach((block) => {
-            block.className = 'bg-muted/50 rounded-lg p-3 overflow-x-auto';
-        });
-        
-        contentDiv.querySelectorAll('code:not([class*="language-"])').forEach((code) => {
-            code.className = 'bg-muted/30 text-accent-foreground px-1 py-0.5 rounded';
-        });
-        
-        contentDiv.querySelectorAll('blockquote').forEach((quote) => {
-            quote.className = 'border-l-4 border-accent bg-accent/10 text-card-foreground pl-4 py-2 my-2';
-        });
-        
-        contentDiv.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((heading) => {
-            heading.className = 'text-card-foreground font-bold mb-2 mt-3';
-        });
-        
-        contentDiv.querySelectorAll('p').forEach((paragraph) => {
-            paragraph.className = 'text-card-foreground mb-2';
-        });
-        
-        contentDiv.querySelectorAll('ul, ol').forEach((list) => {
-            list.className = 'text-card-foreground ml-4 mb-2';
-        });
-        
-        contentDiv.querySelectorAll('a').forEach((link) => {
-            link.className = 'text-accent hover:text-accent-foreground underline';
-        });
-        
-        // 코드 하이라이팅
-        contentDiv.querySelectorAll('pre code').forEach((block) => {
-            Prism.highlightElement(block);
-        });
+        // 버튼 텍스트 변경
+        if (this.generateAnswerBtn) {
+            this.generateAnswerBtn.innerHTML = '<i class="fas fa-times"></i> 답변닫기';
+            this.generateAnswerBtn.style.background = '#e74c3c';
+        }
     }
     
-    // 법령 패널 업데이트
-    function updateLawPanel(laws) {
-        if (!lawContent) return;
+    hidePanels() {
+        document.body.classList.remove('has-panels');
         
-        lawContent.innerHTML = laws.map(law => `
-            <div class="bg-muted/50 rounded-lg p-4 border border-muted hover:bg-muted/70 transition-colors">
-                <h4 class="font-semibold mb-2 text-card-foreground">${escapeHtml(law.title)}</h4>
-                <p class="text-sm text-muted-foreground leading-relaxed">${escapeHtml(law.content)}</p>
+        // 버튼 텍스트 원복
+        if (this.generateAnswerBtn) {
+            this.generateAnswerBtn.innerHTML = '<i class="fas fa-magic"></i> 답변생성';
+            this.generateAnswerBtn.style.background = '#8e8ea0';
+            
+            // 버튼에 애니메이션 효과 추가
+            this.generateAnswerBtn.classList.add('button-pulse');
+            setTimeout(() => {
+                this.generateAnswerBtn.classList.remove('button-pulse');
+            }, 1000);
+        }
+        
+        // 수정 모드 해제
+        this.exitEditMode();
+    }
+    
+    // 수정 모드 토글
+    toggleEditMode(section) {
+        if (this.isEditMode) {
+            this.saveEdit(section);
+        } else {
+            this.enterEditMode(section);
+        }
+    }
+    
+    // 수정 모드 진입
+    enterEditMode(section) {
+        this.isEditMode = true;
+        
+        if (section === 'answer' && this.answerContent) {
+            this.answerContent.setAttribute('contenteditable', 'true');
+            this.answerContent.focus();
+            this.answerContent.style.outline = '2px solid #10a37f';
+            this.answerContent.style.borderRadius = '6px';
+            this.answerContent.style.padding = '8px';
+        } else if (section === 'law' && this.lawContent) {
+            this.lawContent.setAttribute('contenteditable', 'true');
+            this.lawContent.focus();
+            this.lawContent.style.outline = '2px solid #10a37f';
+            this.lawContent.style.borderRadius = '6px';
+            this.lawContent.style.padding = '8px';
+        }
+        
+        // 버튼 텍스트 변경
+        if (section === 'answer' && this.editAnswerBtn) {
+            this.editAnswerBtn.innerHTML = '<i class="fas fa-save"></i> 저장';
+        } else if (this.editLawBtn) {
+            this.editLawBtn.innerHTML = '<i class="fas fa-save"></i> 저장';
+        }
+    }
+    
+    // 수정 모드 해제
+    exitEditMode() {
+        this.isEditMode = false;
+        
+        // contenteditable 제거 및 스타일 초기화
+        if (this.answerContent) {
+            this.answerContent.removeAttribute('contenteditable');
+            this.answerContent.style.outline = '';
+            this.answerContent.style.borderRadius = '';
+            this.answerContent.style.padding = '';
+        }
+        
+        if (this.lawContent) {
+            this.lawContent.removeAttribute('contenteditable');
+            this.lawContent.style.outline = '';
+            this.lawContent.style.borderRadius = '';
+            this.lawContent.style.padding = '';
+        }
+        
+        // 버튼 텍스트 원복
+        if (this.editAnswerBtn) {
+            this.editAnswerBtn.innerHTML = '<i class="fas fa-edit"></i> 수정';
+        }
+        if (this.editLawBtn) {
+            this.editLawBtn.innerHTML = '<i class="fas fa-edit"></i> 수정';
+        }
+    }
+    
+    // 수정 내용 저장
+    saveEdit(section) {
+        if (section === 'answer') {
+            console.log('답변추천 내용 저장됨');
+        } else if (section === 'law') {
+            console.log('관련법령 내용 저장됨');
+        }
+        
+        this.exitEditMode();
+    }
+    
+    // 내용 복사
+    copyContent(section) {
+        let content = '';
+        
+        if (section === 'answer' && this.answerContent) {
+            content = this.stripHtml(this.answerContent.innerHTML);
+        } else if (section === 'law' && this.lawContent) {
+            content = this.stripHtml(this.lawContent.innerHTML);
+        }
+        
+        if (content) {
+            navigator.clipboard.writeText(content).then(() => {
+                this.showCopyFeedback(section);
+            }).catch(err => {
+                this.fallbackCopy(content);
+            });
+        }
+    }
+    
+    // HTML 태그 제거
+    stripHtml(html) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        return tmp.textContent || tmp.innerText || '';
+    }
+    
+    // 복사 성공 피드백
+    showCopyFeedback(section) {
+        const btn = section === 'answer' ? this.copyAnswerBtn : this.copyLawBtn;
+        if (!btn) return;
+        
+        const originalText = btn.innerHTML;
+        
+        btn.innerHTML = '<i class="fas fa-check"></i> 복사됨';
+        btn.style.background = '#10a37f';
+        btn.style.color = 'white';
+        
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.style.background = 'transparent';
+            btn.style.color = '#8e8ea0';
+        }, 2000);
+    }
+    
+    // 클립보드 API 실패 시 fallback
+    fallbackCopy(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            document.execCommand('copy');
+            this.showCopyFeedback('answer');
+        } catch (err) {
+            console.error('복사 실패:', err);
+        }
+        
+        document.body.removeChild(textArea);
+    }
+    
+    generateAnswer() {
+        const lastUserMessage = this.messages.filter(m => m.type === 'user').pop();
+        if (!lastUserMessage || !this.answerContent) return;
+        
+        const answer = this.createDetailedAnswer(lastUserMessage.content);
+        this.answerContent.innerHTML = answer;
+    }
+    
+    createDetailedAnswer(userMessage) {
+        return `
+            <div class="answer-text">
+                <h4>📋 민원 처리 답변</h4>
+                <p>입력하신 민원 내용: "${userMessage}"</p>
+                <p>해당 민원에 대한 상세한 답변을 제공해드립니다.</p>
+                
+                <div class="answer-details">
+                    <div class="detail-item">
+                        <strong>처리 절차:</strong> 민원 접수 → 검토 → 답변 작성 → 통보
+                    </div>
+                    <div class="detail-item">
+                        <strong>처리 기간:</strong> 일반적으로 7일 이내
+                    </div>
+                    <div class="detail-item">
+                        <strong>담당 부서:</strong> 민원처리과
+                    </div>
+                </div>
+                
+                <p>추가 문의사항이 있으시면 언제든 연락주세요.</p>
+            </div>
+        `;
+    }
+    
+    updateLawContent() {
+        if (!this.lawContent) return;
+        
+        const laws = [
+            {
+                id: 'default-1',
+                title: '민원사무처리에 관한 법률',
+                content: '제1조 (목적) 이 법은 민원사무의 처리에 관한 기본사항을 정함으로써 민원사무의 신속하고 공정한 처리와 국민의 권익보호를 도모함을 목적으로 한다.',
+                articles: ['제1조', '제2조', '제3조']
+            },
+            {
+                id: 'default-2',
+                title: '행정절차법',
+                content: '제1조 (목적) 이 법은 행정청의 처리가 국민의 권리와 의무에 직접적인 영향을 미치는 행정절차에 대하여 공통적으로 적용될 사항을 규정함으로써 행정의 공정성과 투명성을 확보하고 국민의 권익을 보호함을 목적으로 한다.',
+                articles: ['제1조', '제2조', '제3조']
+            },
+            {
+                id: 'default-3',
+                title: '정보공개법',
+                content: '제1조 (목적) 이 법은 공공기관이 보유·관리하는 정보를 국민의 알권리 보장과 국정에 대한 국민의 참여와 국정에 대한 국민의 감시를 위하여 국민에게 공개하도록 함을 목적으로 한다.',
+                articles: ['제1조', '제2조', '제3조']
+            }
+        ];
+        
+        this.lawContent.innerHTML = laws.map(law => `
+            <div class="law-item" data-clause-id="${law.id}">
+                <button class="law-item-remove" onclick="chatbot.removeLawItem('${law.id}')" title="이 항목 삭제">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="law-source">
+                    <span class="law-guideline">📋 기본법령</span>
+                </div>
+                <h4>${law.title}</h4>
+                <p>${law.content}</p>
+                <div class="law-articles">
+                    ${law.articles.map(article => `<span class="article-tag">${article}</span>`).join('')}
+                </div>
             </div>
         `).join('');
     }
     
-    // 채팅 히스토리에 아이템 추가
-    function addChatHistoryItem(title) {
-        if (!chatHistory) return;
+    saveChatSession() {
+        const session = {
+            id: this.currentSessionId,
+            messages: [...this.messages],
+            timestamp: new Date()
+        };
+        this.chatSessions.push(session);
+        // TODO: DB에 저장
+    }
+    
+    addChatHistoryItem(title) {
+        if (!this.chatHistory) return;
         
-        const historyItem = document.createElement('div');
-        historyItem.className = 'chat-item px-4 py-3 bg-white/10 rounded-xl text-white cursor-pointer hover:bg-white/20 hover:translate-x-1 transition-all duration-300 flex items-center gap-2';
-        historyItem.innerHTML = `
-            <i class="fas fa-comment text-yellow-400"></i>
-            <span class="text-sm truncate">${escapeHtml(title)}</span>
+        const chatItem = document.createElement('div');
+        chatItem.className = 'chat-item';
+        chatItem.innerHTML = `
+            <i class="fas fa-comment"></i>
+            <span>${title}</span>
         `;
+        this.chatHistory.appendChild(chatItem);
+    }
+    
+    // 법령 편집 패널 이벤트 리스너 초기화
+    initializeLawEditEventListeners() {
+        // 닫기 버튼들
+        const closeFromGuideline = document.getElementById('closeFromGuideline');
+        const closeFromArticle = document.getElementById('closeFromArticle');
+        const closeFromClause = document.getElementById('closeFromClause');
         
-        historyItem.addEventListener('click', function() {
-            // 채팅 히스토리 클릭 시 해당 채팅 로드 (추후 구현)
-            console.log('Load chat:', title);
-        });
+        if (closeFromGuideline) {
+            closeFromGuideline.addEventListener('click', () => this.hideLawEditPanel());
+        }
+        if (closeFromArticle) {
+            closeFromArticle.addEventListener('click', () => this.hideLawEditPanel());
+        }
+        if (closeFromClause) {
+            closeFromClause.addEventListener('click', () => this.hideLawEditPanel());
+        }
         
-        chatHistory.appendChild(historyItem);
-    }
-    
-    // 전송 버튼 클릭
-    if (sendButton) {
-        sendButton.addEventListener('click', sendMessage);
-    }
-    
-    // 새 채팅 버튼
-    if (newChatBtn) {
-        newChatBtn.addEventListener('click', async function() {
-            // 세션 초기화
-            sessionId = null;
-            localStorage.removeItem('sessionId');
-            
-            // 메시지 초기화
-            if (chatMessages) {
-                chatMessages.innerHTML = `
-                    <div class="message flex gap-3 animate-slide-in">
-                        <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground flex-shrink-0 shadow-sm">
-                            <i class="fas fa-robot"></i>
-                        </div>
-                        <div class="flex-1">
-                            <div class="bg-card border border-border rounded-2xl rounded-tl-none p-4 shadow-sm max-w-[80%]">
-                                <div class="text-card-foreground markdown-content">안녕하세요! 민원처리 도우미입니다. 어떤 도움이 필요하신가요?</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // 오른쪽 패널 숨기기
-            hideRightPanels();
-            
-            // 새 세션 생성
-            try {
-                const response = await fetch('/api/new-session', {
-                    method: 'POST'
-                });
-                const data = await response.json();
-                sessionId = data.session_id;
-                localStorage.setItem('sessionId', sessionId);
-                
-                // 채팅 히스토리에 추가
-                const chatCount = chatHistory ? chatHistory.children.length + 1 : 1;
-                addChatHistoryItem(`새 채팅 ${chatCount}`);
-            } catch (error) {
-                console.error('Error creating new session:', error);
-            }
-        });
-    }
-    
-    // 패널 닫기 버튼
-    if (closePanelBtn) {
-        closePanelBtn.addEventListener('click', hideRightPanels);
-    }
-    
-    // 답변 복사 버튼 기능
-    const copyAnswerBtn = document.getElementById('copyAnswerBtn');
-    if (copyAnswerBtn) {
-        copyAnswerBtn.addEventListener('click', function() {
-            const contentDiv = document.getElementById('answerContent');
-            if (contentDiv) {
-                const text = contentDiv.innerText;
-                navigator.clipboard.writeText(text).then(() => {
-                    const originalHTML = this.innerHTML;
-                    this.innerHTML = '<i class="fas fa-check"></i> <span>복사됨!</span>';
-                    setTimeout(() => {
-                        this.innerHTML = originalHTML;
-                    }, 2000);
-                }).catch(err => {
-                    console.error('답변 복사 실패:', err);
-                });
-            }
-        });
-    }
-    
-    // 법령 복사 버튼 기능
-    const copyLawBtn = document.getElementById('copyLawBtn');
-    if (copyLawBtn) {
-        copyLawBtn.addEventListener('click', function() {
-            const contentDiv = document.getElementById('lawContent');
-            if (contentDiv) {
-                const text = contentDiv.innerText;
-                navigator.clipboard.writeText(text).then(() => {
-                    const originalHTML = this.innerHTML;
-                    this.innerHTML = '<i class="fas fa-check"></i> <span>복사됨!</span>';
-                    setTimeout(() => {
-                        this.innerHTML = originalHTML;
-                    }, 2000);
-                }).catch(err => {
-                    console.error('법령 복사 실패:', err);
-                });
-            }
-        });
-    }
-    
-    // 초기 웰컴 메시지
-    if (chatMessages && chatMessages.children.length === 0) {
-        chatMessages.innerHTML = `
-            <div class="message flex gap-3 animate-slide-in">
-                <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground flex-shrink-0 shadow-sm">
-                    <i class="fas fa-robot"></i>
-                </div>
-                <div class="flex-1">
-                    <div class="bg-card border border-border rounded-2xl rounded-tl-none p-4 shadow-sm max-w-[80%]">
-                        <div class="text-card-foreground markdown-content">안녕하세요! 민원처리 도우미입니다. 어떤 도움이 필요하신가요?</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    // 법령 편집 패널 관련 기능
-    const lawEditPanel = document.getElementById('lawEditPanel');
-    const guidelineStep = document.getElementById('guidelineStep');
-    const articleStep = document.getElementById('articleStep');
-    const clauseStep = document.getElementById('clauseStep');
-    
-    // 법령 패널의 수정 버튼
-    const editLawBtn = document.getElementById('editLawBtn');
-    if (editLawBtn) {
-        editLawBtn.addEventListener('click', function() {
-            showLawEditPanel();
-        });
+        // 뒤로가기 버튼들
+        const backToGuideline = document.getElementById('backToGuideline');
+        const backToArticle = document.getElementById('backToArticle');
+        
+        if (backToGuideline) {
+            backToGuideline.addEventListener('click', () => this.navigateLawPanel(1));
+        }
+        if (backToArticle) {
+            backToArticle.addEventListener('click', () => this.navigateLawPanel(2));
+        }
+        
+        // 선택된 항 적용 버튼
+        const applySelected = document.getElementById('applySelected');
+        if (applySelected) {
+            applySelected.addEventListener('click', () => this.applySelectedClauses());
+        }
     }
     
     // 법령 편집 패널 표시
-    function showLawEditPanel() {
-        if (lawEditPanel) {
-            // 패널 표시
-            lawEditPanel.style.transform = 'translateX(0)';
-            // 첫 번째 단계 표시
-            showStep('guideline');
-            
-            // 메인 앱 크기 조정 (양쪽 패널 공간 확보)
-            const app = document.getElementById('app');
-            
-            if (app) {
-                // 앱 영역을 축소 (왼쪽 정렬)
-                app.style.width = 'calc(100% - 900px)'; // 420px + 360px + 120px gap
-                app.style.marginLeft = '40px';
-                app.style.marginRight = '860px';
-                app.style.maxWidth = 'none';
-                app.style.transition = 'all 0.3s ease';
-            }
+    showLawEditPanel() {
+        if (this.lawEditPanel) {
+            this.lawEditPanel.classList.add('show');
+            this.currentLawEditStep = 1;
+            this.selectedClauses = [];
+            this.navigateLawPanel(1);
+            this.loadGuidelineData();
         }
     }
     
-    // 법령 편집 패널 숨기기
-    function hideLawEditPanel() {
-        if (lawEditPanel) {
-            // 패널 숨기기
-            lawEditPanel.style.transform = 'translateX(calc(100% + 460px))';
-            
-            // 메인 앱 영역 크기 복원 (오른쪽 패널만 있을 때)
-            const app = document.getElementById('app');
-            if (app) {
-                if (rightPanels && rightPanels.classList.contains('translate-x-0')) {
-                    // 오른쪽 패널만 열려있는 경우
-                    app.style.width = 'calc(100% - 500px)';
-                    app.style.marginRight = '460px';
-                    app.style.marginLeft = '40px';
-                } else {
-                    // 모든 패널이 닫힌 경우
-                    app.style.width = 'calc(100% - 80px)';
-                    app.style.marginRight = 'auto';
-                    app.style.marginLeft = 'auto';
-                    app.style.maxWidth = '1400px';
-                }
-            }
+    // 법령 편집 패널 숨김
+    hideLawEditPanel() {
+        if (this.lawEditPanel) {
+            this.lawEditPanel.classList.remove('show');
+            this.currentLawEditStep = 1;
+            this.selectedClauses = [];
         }
     }
     
-    // 단계 전환 함수
-    function showStep(step) {
-        // 모든 단계 숨기기
-        if (guidelineStep) guidelineStep.classList.add('hidden');
-        if (articleStep) articleStep.classList.add('hidden');
-        if (clauseStep) clauseStep.classList.add('hidden');
+    // 법령 편집 패널 단계 이동
+    navigateLawPanel(step) {
+        // 모든 단계 숨김
+        if (this.guidelineStep) this.guidelineStep.style.display = 'none';
+        if (this.articleStep) this.articleStep.style.display = 'none';
+        if (this.clauseStep) this.clauseStep.style.display = 'none';
         
-        // 선택된 단계 표시
+        // 현재 단계 표시
+        this.currentLawEditStep = step;
+        
         switch(step) {
-            case 'guideline':
-                if (guidelineStep) {
-                    guidelineStep.classList.remove('hidden');
-                    guidelineStep.classList.add('flex');
-                }
+            case 1:
+                if (this.guidelineStep) this.guidelineStep.style.display = 'flex';
                 break;
-            case 'article':
-                if (articleStep) {
-                    articleStep.classList.remove('hidden');
-                    articleStep.classList.add('flex');
-                }
+            case 2:
+                if (this.articleStep) this.articleStep.style.display = 'flex';
                 break;
-            case 'clause':
-                if (clauseStep) {
-                    clauseStep.classList.remove('hidden');
-                    clauseStep.classList.add('flex');
-                }
+            case 3:
+                if (this.clauseStep) this.clauseStep.style.display = 'flex';
                 break;
         }
     }
     
-    // 지침 선택 (1단계)
-    const guidelineList = document.getElementById('guidelineList');
-    if (guidelineList) {
-        guidelineList.addEventListener('click', function(e) {
-            const button = e.target.closest('button');
-            if (button) {
-                const guidelineTitle = button.querySelector('.font-semibold').textContent;
-                const selectedTitle = document.getElementById('selectedGuidelineTitle');
-                if (selectedTitle) {
-                    selectedTitle.textContent = guidelineTitle;
-                }
-                showStep('article');
-                loadArticles(guidelineTitle);
-            }
+    // 지침 데이터 로드 (더미 데이터)
+    loadGuidelineData() {
+        // TODO: DB에서 지침 데이터 가져오기
+        const guidelines = [
+            { id: 'aa', name: 'AA지침', description: '민원처리 기본 지침' },
+            { id: 'bb', name: 'BB지침', description: '행정절차 관련 지침' },
+            { id: 'cc', name: 'CC지침', description: '정보공개 처리 지침' },
+            { id: 'dd', name: 'DD지침', description: '민원인 권리보호 지침' },
+            { id: 'ee', name: 'EE지침', description: '전자민원 처리 지침' }
+        ];
+        
+        this.renderGuidelineList(guidelines);
+    }
+    
+    // 지침 목록 렌더링
+    renderGuidelineList(guidelines) {
+        if (!this.guidelineList) return;
+        
+        this.guidelineList.innerHTML = '';
+        
+        guidelines.forEach(guideline => {
+            const button = document.createElement('button');
+            button.className = 'guideline-btn';
+            button.innerHTML = `
+                <span class="guideline-name">${guideline.name}</span>
+                <span class="guideline-desc">${guideline.description}</span>
+            `;
+            button.addEventListener('click', () => this.selectGuideline(guideline));
+            this.guidelineList.appendChild(button);
         });
     }
     
-    // 조항 로드 함수 (예시)
-    function loadArticles(guideline) {
-        const articleList = document.getElementById('articleList');
-        if (articleList) {
-            // 예시 데이터
-            const articles = [
-                '제1조 (목적)',
-                '제2조 (정의)',
-                '제3조 (적용범위)',
-                '제4조 (처리절차)',
-                '제5조 (처리기한)'
-            ];
-            
-            articleList.innerHTML = articles.map(article => `
-                <button class="w-full p-3 bg-muted hover:bg-accent hover:text-accent-foreground rounded-lg text-left transition-colors">
-                    <div class="font-semibold">${article}</div>
+    // 지침 선택
+    selectGuideline(guideline) {
+        if (this.selectedGuidelineTitle) {
+            this.selectedGuidelineTitle.textContent = guideline.name;
+        }
+        this.currentSelectedGuideline = guideline; // 현재 선택된 지침 저장
+        this.loadArticleData(guideline.id);
+        this.navigateLawPanel(2);
+    }
+    
+    // 조항 데이터 로드 (더미 데이터)
+    loadArticleData(guidelineId) {
+        // TODO: DB에서 선택된 지침의 조항 데이터 가져오기
+        const articles = [
+            { id: '1', name: '1조(목적)', description: '이 지침의 목적을 규정' },
+            { id: '2', name: '2조(점검방법)', description: '민원처리 점검방법을 규정' },
+            { id: '3', name: '3조(처리기한)', description: '민원처리 기한을 규정' },
+            { id: '4', name: '4조(담당자)', description: '민원처리 담당자를 규정' },
+            { id: '5', name: '5조(이의신청)', description: '민원처리 이의신청 절차를 규정' }
+        ];
+        
+        this.renderArticleList(articles);
+    }
+    
+    // 조항 목록 렌더링
+    renderArticleList(articles) {
+        if (!this.articleList) return;
+        
+        this.articleList.innerHTML = '';
+        
+        articles.forEach(article => {
+            const button = document.createElement('button');
+            button.className = 'article-btn';
+            button.innerHTML = `
+                <span class="article-name">${article.name}</span>
+                <span class="article-desc">${article.description}</span>
+            `;
+            button.addEventListener('click', () => this.selectArticle(article));
+            this.articleList.appendChild(button);
+        });
+    }
+    
+    // 조항 선택
+    selectArticle(article) {
+        if (this.selectedArticleTitle) {
+            this.selectedArticleTitle.textContent = article.name;
+        }
+        this.currentSelectedArticle = article; // 현재 선택된 조항 저장
+        this.loadClauseData(article.id);
+        this.navigateLawPanel(3);
+    }
+    
+    // 항 데이터 로드 (더미 데이터)
+    loadClauseData(articleId) {
+        // TODO: DB에서 선택된 조항의 항 데이터 가져오기
+        const clauses = [
+            { 
+                id: '1-1', 
+                title: '1항', 
+                content: '민원사무의 처리에 관한 기본사항을 정함으로써 민원사무의 신속하고 공정한 처리와 국민의 권익보호를 도모함을 목적으로 한다.' 
+            },
+            { 
+                id: '1-2', 
+                title: '2항', 
+                content: '이 법에서 정하지 아니한 사항에 대하여는 다른 법률이 정하는 바에 따른다.' 
+            },
+            { 
+                id: '1-3', 
+                title: '3항', 
+                content: '민원처리기관은 민원인의 권익보호와 편의증진을 위하여 노력하여야 한다.' 
+            },
+            { 
+                id: '1-4', 
+                title: '4항', 
+                content: '민원처리기관은 민원사무를 처리할 때 관련 법령과 기준에 따라 공정하고 투명하게 처리하여야 한다.' 
+            }
+        ];
+        
+        this.renderClauseList(clauses);
+    }
+    
+    // 항 목록 렌더링 (복수선택 가능)
+    renderClauseList(clauses) {
+        if (!this.clauseList) return;
+        
+        this.clauseList.innerHTML = '';
+        
+        clauses.forEach(clause => {
+            const button = document.createElement('button');
+            button.className = 'clause-btn';
+            button.dataset.clauseId = clause.id;
+            button.innerHTML = `
+                <div class="clause-content">
+                    <div class="clause-title">${clause.title}</div>
+                    <div class="clause-text">${clause.content}</div>
+                </div>
+            `;
+            button.addEventListener('click', () => this.toggleClauseSelection(clause, button));
+            this.clauseList.appendChild(button);
+        });
+    }
+    
+    // 항 선택/해제 토글
+    toggleClauseSelection(clause, button) {
+        const isSelected = button.classList.contains('selected');
+        
+        if (isSelected) {
+            // 선택 해제
+            button.classList.remove('selected');
+            this.selectedClauses = this.selectedClauses.filter(c => c.id !== clause.id);
+        } else {
+            // 선택 - 지침과 조항 정보도 함께 저장
+            button.classList.add('selected');
+            const enrichedClause = {
+                ...clause,
+                guideline: this.currentSelectedGuideline,
+                article: this.currentSelectedArticle
+            };
+            this.selectedClauses.push(enrichedClause);
+        }
+        
+        this.updateSelectedCount();
+    }
+    
+    // 선택된 항 개수 업데이트
+    updateSelectedCount() {
+        const applyButton = document.getElementById('applySelected');
+        if (applyButton) {
+            if (this.selectedClauses.length > 0) {
+                applyButton.textContent = `선택된 항 적용 (${this.selectedClauses.length}개)`;
+            } else {
+                applyButton.textContent = '선택된 항 적용';
+            }
+        }
+    }
+    
+    // 선택된 항들을 관련법령에 적용
+    applySelectedClauses() {
+        if (this.selectedClauses.length === 0) {
+            alert('적용할 항을 선택해주세요.');
+            return;
+        }
+        
+        if (!this.lawContent) return;
+        
+        // 선택된 항들을 관련법령 패널에 추가 (지침, 조항, 항 정보 모두 포함)
+        const selectedContent = this.selectedClauses.map(clause => `
+            <div class="law-item" data-clause-id="${clause.id}">
+                <button class="law-item-remove" onclick="chatbot.removeLawItem('${clause.id}')" title="이 항목 삭제">
+                    <i class="fas fa-times"></i>
                 </button>
-            `).join('');
-        }
+                <div class="law-source">
+                    <span class="law-guideline">📋 ${clause.guideline.name}</span>
+                    <span class="law-article">📄 ${clause.article.name}</span>
+                </div>
+                <h4>${clause.title}</h4>
+                <p>${clause.content}</p>
+            </div>
+        `).join('');
+        
+        // 기존 내용에 추가 (또는 교체)
+        this.lawContent.innerHTML += selectedContent;
+        
+        // TODO: DB에 선택된 항들 저장
+        console.log('선택된 항들이 적용되었습니다:', this.selectedClauses);
+        
+        // 패널 닫기
+        this.hideLawEditPanel();
+        
+        // 성공 메시지 표시
+        const detailMessage = this.selectedClauses.map(clause => 
+            `${clause.guideline.name} ${clause.article.name} ${clause.title}`
+        ).join(', ');
+        this.showSuccessMessage(`${this.selectedClauses.length}개의 항이 추가되었습니다: ${detailMessage}`);
     }
     
-    // 조항 선택 (2단계)
-    const articleList = document.getElementById('articleList');
-    if (articleList) {
-        articleList.addEventListener('click', function(e) {
-            const button = e.target.closest('button');
-            if (button) {
-                const articleTitle = button.querySelector('.font-semibold').textContent;
-                const selectedTitle = document.getElementById('selectedArticleTitle');
-                if (selectedTitle) {
-                    selectedTitle.textContent = articleTitle;
-                }
-                showStep('clause');
-                loadClauses(articleTitle);
-            }
-        });
+    // 성공 메시지 표시
+    showSuccessMessage(message) {
+        const messageElement = document.createElement('div');
+        messageElement.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            z-index: 2000;
+            font-weight: 500;
+        `;
+        messageElement.textContent = message;
+        document.body.appendChild(messageElement);
+        
+        setTimeout(() => {
+            messageElement.remove();
+        }, 3000);
     }
     
-    // 항 로드 함수 (예시)
-    function loadClauses(article) {
-        const clauseList = document.getElementById('clauseList');
-        if (clauseList) {
-            // 예시 데이터
-            const clauses = [
-                '① 민원사무는 신속하고 공정하게 처리되어야 한다.',
-                '② 민원인의 권익을 보호하고 편의를 도모하여야 한다.',
-                '③ 처리과정은 투명하게 공개되어야 한다.',
-                '④ 관련 법령을 준수하여 처리하여야 한다.'
-            ];
-            
-            clauseList.innerHTML = clauses.map((clause, index) => `
-                <label class="flex items-start p-3 bg-muted hover:bg-accent/20 rounded-lg cursor-pointer transition-colors">
-                    <input type="checkbox" class="mt-1 mr-3 w-4 h-4 text-accent border-2 border-muted-foreground rounded focus:ring-accent focus:ring-2" value="${index}">
-                    <span class="text-sm text-card-foreground">${clause}</span>
-                </label>
-            `).join('');
-        }
-    }
-    
-    // 선택된 항 적용
-    const applySelectedBtn = document.getElementById('applySelected');
-    if (applySelectedBtn) {
-        applySelectedBtn.addEventListener('click', function() {
-            const selectedClauses = document.querySelectorAll('#clauseList input[type="checkbox"]:checked');
-            const selectedTexts = Array.from(selectedClauses).map(cb => 
-                cb.parentElement.querySelector('span').textContent
-            );
-            
-            if (selectedTexts.length > 0) {
-                // 선택된 항목을 법령 패널에 추가
-                updateLawPanel([{
-                    title: document.getElementById('selectedGuidelineTitle').textContent,
-                    content: selectedTexts.join('\n')
-                }]);
+    // 개별 법령 항목 삭제
+    removeLawItem(clauseId) {
+        if (!this.lawContent) return;
+        
+        const lawItem = this.lawContent.querySelector(`[data-clause-id="${clauseId}"]`);
+        if (lawItem) {
+            // 삭제 확인
+            const lawTitle = lawItem.querySelector('h4').textContent;
+            if (confirm(`"${lawTitle}" 항목을 삭제하시겠습니까?`)) {
+                // 부드러운 삭제 애니메이션
+                lawItem.style.transition = 'all 0.3s ease';
+                lawItem.style.transform = 'translateX(100%)';
+                lawItem.style.opacity = '0';
                 
-                // 패널 닫기
-                hideLawEditPanel();
-                
-                // 알림 표시 (옵션)
-                console.log('선택된 항목이 적용되었습니다:', selectedTexts);
+                setTimeout(() => {
+                    lawItem.remove();
+                    this.showSuccessMessage('항목이 삭제되었습니다.');
+                    
+                    // TODO: DB에서도 삭제
+                    console.log('법령 항목 삭제됨:', clauseId);
+                }, 300);
             }
-        });
-    }
-    
-    // 뒤로가기 버튼들
-    const backToGuidelineBtn = document.getElementById('backToGuideline');
-    if (backToGuidelineBtn) {
-        backToGuidelineBtn.addEventListener('click', () => showStep('guideline'));
-    }
-    
-    const backToArticleBtn = document.getElementById('backToArticle');
-    if (backToArticleBtn) {
-        backToArticleBtn.addEventListener('click', () => showStep('article'));
-    }
-    
-    // 닫기 버튼들
-    const closeButtons = [
-        document.getElementById('closeFromGuideline'),
-        document.getElementById('closeFromArticle'),
-        document.getElementById('closeFromClause')
-    ];
-    
-    closeButtons.forEach(btn => {
-        if (btn) {
-            btn.addEventListener('click', hideLawEditPanel);
         }
-    });
+    }
+}
+
+// 앱 초기화
+let chatbot;
+document.addEventListener('DOMContentLoaded', () => {
+    chatbot = new ComplaintChatbot();
 });
+
