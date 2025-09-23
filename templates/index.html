@@ -1,244 +1,151 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="h-[95vh] w-[calc(100%-80px)] max-w-[1400px] min-w-[1000px] bg-card rounded-lg shadow-xl overflow-hidden animate-fade-in border border-border transition-all duration-300 mx-10" id="app">
-    <div class="grid grid-cols-[280px_1fr] h-full transition-all duration-300 relative" id="mainLayout">
+<div class="app" id="app">
+    <div class="layout">
         <!-- 왼쪽 사이드바 -->
-        <aside class="bg-sidebar border-r border-sidebar-border p-6 flex flex-col overflow-y-auto relative transform transition-transform duration-300" id="sidebar">
-            <!-- 패턴 오버레이 -->
-            <div class="absolute inset-0 opacity-30 pointer-events-none" style="background-image: url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><defs><pattern id=%22robot-pattern%22 x=%220%22 y=%220%22 width=%2220%22 height=%2220%22 patternUnits=%22userSpaceOnUse%22><circle cx=%2210%22 cy=%2210%22 r=%221%22 fill=%22rgba(255,255,255,0.1)%22/></pattern></defs><rect width=%22100%22 height=%22100%22 fill=%22url(%23robot-pattern)%22/></svg>')"></div>
-            
-            <!-- 헤더 -->
-            <div class="relative z-10 mb-6">
-                <button id="newChatBtn" class="w-full px-6 py-4 bg-sidebar-primary text-sidebar-primary-foreground rounded-xl text-base font-semibold hover-lift shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <button id="newChatBtn" class="new-chat-btn">
                     <i class="fas fa-plus"></i>
-                    <span>새 채팅</span>
+                    새 채팅
                 </button>
             </div>
-            
-            <!-- 채팅 히스토리 -->
-            <div class="relative z-10 flex-1 space-y-3" id="chatHistory">
-                <!-- 채팅 아이템 예시 -->
-                <div class="chat-item px-5 py-3.5 bg-sidebar-accent/10 rounded-xl text-sidebar-foreground cursor-pointer hover:bg-sidebar-accent/20 hover:translate-x-1 transition-all duration-300 flex items-center gap-3">
-                    <i class="fas fa-comment text-sidebar-accent"></i>
-                    <span class="text-sm truncate">건축허가 문의</span>
-                </div>
+            <div class="chat-history" id="chatHistory">
+                <!-- 채팅 내역들이 여기에 추가됩니다 -->
             </div>
-        </aside>
-        
+        </div>
+
         <!-- 중앙 채팅 영역 -->
-        <main class="bg-background flex flex-col overflow-hidden relative">
-            <!-- 사이드바 토글 버튼 (원형 화살표 디자인) -->
-            <button id="sidebarToggle" class="absolute top-1/2 -left-6 transform -translate-y-1/2 z-50 group">
-                <div class="w-12 h-12 bg-card border-2 border-primary rounded-full flex items-center justify-center shadow-lg transition-all duration-200 group-hover:bg-primary group-hover:scale-110 group-hover:shadow-xl">
-                    <div class="flex items-center justify-center w-full h-full">
-                        <i class="fas fa-angle-double-left text-primary group-hover:text-primary-foreground transition-colors duration-200"></i>
-                    </div>
+        <div class="chat-pane">
+            <div class="thread">
+                <div class="messages" id="chatMessages">
+                    <!-- 채팅 메시지들이 여기에 추가됩니다 -->
                 </div>
-            </button>
-            <!-- 메시지 영역 -->
-            <div class="flex-1 p-5 overflow-y-auto space-y-4" id="chatMessages">
-                <!-- 웰컴 메시지 -->
-                <div class="message flex gap-3 animate-slide-in">
-                    <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground flex-shrink-0 shadow-sm">
-                        <i class="fas fa-robot"></i>
+                
+                <div class="composer">
+                    <!-- 민원 예시 버튼들 -->
+                    <div class="complaint-examples">
+                        <h4>자주 들어오는 민원 예시</h4>
+                        <div class="example-buttons">
+                            <button class="example-btn" data-example="건축허가 관련 민원">🏗️ 건축허가</button>
+                            <button class="example-btn" data-example="도로교통 민원">🚗 도로교통</button>
+                            <button class="example-btn" data-example="환경오염 민원">🌱 환경오염</button>
+                            <button class="example-btn" data-example="행정처분 이의신청">📋 행정처분</button>
+                            <button class="example-btn" data-example="정보공개 청구">📄 정보공개</button>
+                            <button class="example-btn" data-example="공공시설 이용 민원">🏛️ 공공시설</button>
+                        </div>
                     </div>
-                    <div class="flex-1">
-                        <div class="bg-card border border-border rounded-2xl rounded-tl-none p-4 shadow-sm max-w-[80%]">
-                            <p class="text-card-foreground">안녕하세요! 민원처리 도우미입니다. 어떤 도움이 필요하신가요?</p>
+                    
+                    <!-- 입력창과 버튼들 -->
+                    <div class="input-container">
+                        <div class="input-wrapper">
+                            <textarea id="messageInput" placeholder="민원 내용을 입력해주세요..." maxlength="1000" rows="1"></textarea>
+                            <button id="sendButton" class="send-btn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- 입력 영역 -->
-            <div class="p-5 bg-muted/30 border-t border-border">
-                <!-- 민원 예시 버튼들 -->
-                <div class="mb-4" id="exampleButtons">
-                    <h4 class="text-sm font-semibold text-muted-foreground mb-3">자주 들어오는 민원 예시</h4>
-                    <div class="flex flex-wrap gap-2">
-                        <button class="example-btn px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/80 transition-all duration-200 shadow-sm hover:shadow-md" data-example="건축허가 관련 민원">
-                            🏗️ 건축허가
-                        </button>
-                        <button class="example-btn px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/80 transition-all duration-200 shadow-sm hover:shadow-md" data-example="도로교통 민원">
-                            🚗 도로교통
-                        </button>
-                        <button class="example-btn px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/80 transition-all duration-200 shadow-sm hover:shadow-md" data-example="환경오염 민원">
-                            🌱 환경오염
-                        </button>
-                        <button class="example-btn px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/80 transition-all duration-200 shadow-sm hover:shadow-md" data-example="행정처분 이의신청">
-                            📋 행정처분
-                        </button>
-                        <button class="example-btn px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/80 transition-all duration-200 shadow-sm hover:shadow-md" data-example="정보공개 청구">
-                            📄 정보공개
-                        </button>
-                        <button class="example-btn px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/80 transition-all duration-200 shadow-sm hover:shadow-md" data-example="공공시설 이용 민원">
-                            🏛️ 공공시설
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- 입력창 -->
-                <div class="flex gap-3">
-                    <div class="flex-1 relative">
-                        <textarea 
-                            id="messageInput" 
-                            placeholder="민원 내용을 입력해주세요..." 
-                            maxlength="1000" 
-                            rows="1"
-                            class="w-full px-4 py-3 bg-card rounded-lg shadow-sm border border-input focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none transition-all duration-300 text-card-foreground placeholder:text-muted-foreground"
-                        ></textarea>
-                    </div>
-                    <button id="sendButton" class="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover-lift shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:bg-primary/90">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
-            </div>
-        </main>
-    </div>
-</div>
-
-<!-- 오른쪽 패널들 (슬라이드 오버레이) -->
-<div class="fixed right-10 top-[2.5vh] h-[95vh] w-[420px] transform translate-x-full transition-all duration-300 z-50" id="rightPanels">
-    <div class="h-full flex flex-col gap-4 pr-4">
-        <!-- 답변 추천 패널 -->
-        <div class="flex-1 min-h-0 bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden">
-            <div class="flex items-center justify-between p-6 pb-4 border-b border-border/50">
-                <h3 class="text-xl font-bold flex items-center gap-2 text-card-foreground">
-                    <span>💡</span>
-                    <span>답변추천</span>
-                </h3>
-                <button id="closePanelBtn" class="text-muted-foreground hover:text-foreground transition-colors">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div class="flex-1 overflow-y-auto p-6" id="answerContent">
-                <div class="flex items-center justify-center h-full">
-                    <div class="text-center">
-                        <i class="fas fa-spinner fa-spin text-4xl mb-3 text-muted-foreground"></i>
-                        <p class="text-muted-foreground">답변을 생성하고 있습니다...</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="flex gap-2 p-4 border-t border-border bg-card">
-                <button id="editAnswerBtn" class="flex-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md">
-                    <i class="fas fa-edit"></i>
-                    <span>수정</span>
-                </button>
-                <button id="copyAnswerBtn" class="flex-1 px-3 py-2 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md">
-                    <i class="fas fa-copy"></i>
-                    <span>복사</span>
-                </button>
-            </div>
-        </div>
-        
-        <!-- 관련 법령 패널 -->
-        <div class="flex-1 min-h-0 bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden">
-            <div class="p-6 pb-4 border-b border-border/50">
-                <h3 class="text-xl font-bold flex items-center gap-2 text-card-foreground">
-                    <span>⚖️</span>
-                    <span>관련법령</span>
-                </h3>
-            </div>
-            
-            <div class="flex-1 overflow-y-auto p-6 space-y-3" id="lawContent">
-                <div class="bg-muted/50 rounded-lg p-4 border border-muted hover:bg-muted/70 transition-colors">
-                    <h4 class="font-semibold mb-2 text-foreground">민원사무처리에 관한 법률</h4>
-                    <p class="text-sm text-muted-foreground leading-relaxed">제1조 (목적) 이 법은 민원사무의 처리에 관한 기본사항을 정함으로써...</p>
-                </div>
-                <div class="bg-muted/50 rounded-lg p-4 border border-muted hover:bg-muted/70 transition-colors">
-                    <h4 class="font-semibold mb-2 text-foreground">행정절차법</h4>
-                    <p class="text-sm text-muted-foreground leading-relaxed">제1조 (목적) 이 법은 행정청의 처리가 국민의 권리와 의무에 직접적인 영향을 미치는...</p>
-                </div>
-            </div>
-            
-            <div class="flex gap-2 p-4 border-t border-border bg-card">
-                <button id="editLawBtn" class="flex-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md">
-                    <i class="fas fa-edit"></i>
-                    <span>수정</span>
-                </button>
-                <button id="copyLawBtn" class="flex-1 px-3 py-2 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md">
-                    <i class="fas fa-copy"></i>
-                    <span>복사</span>
-                </button>
-            </div>
         </div>
     </div>
 </div>
 
-<!-- 법령 편집 다단계 패널 (오른쪽 패널들 왼쪽에 표시) -->
-<div class="fixed right-[calc(40px+420px)] top-[2.5vh] h-[95vh] w-[360px] transform translate-x-[calc(100%+460px)] transition-all duration-300 z-[45] bg-card border border-border rounded-lg shadow-2xl" id="lawEditPanel">
-    <!-- 1단계: 지침 목록 -->
-    <div class="h-full flex flex-col" id="guidelineStep">
-        <div class="p-5 border-b border-border">
-            <h3 class="text-xl font-bold text-card-foreground">관련 지침 선택</h3>
+<!-- 오른쪽 패널들 (컨테이너 밖으로 분리) -->
+<div class="right-panels" id="rightPanels">
+    <div class="right-reco" id="answerPanel">
+        <div class="panel-header">
+            <h3>💡 답변추천</h3>
         </div>
-        <div class="flex-1 overflow-y-auto p-5">
-            <div class="space-y-2" id="guidelineList">
-                <!-- 지침 버튼들이 여기에 동적으로 추가됩니다 -->
-                <button class="w-full p-3 bg-muted hover:bg-accent hover:text-accent-foreground rounded-lg text-left transition-colors">
-                    <div class="font-semibold">민원처리 기본지침</div>
-                    <div class="text-sm text-muted-foreground">일반적인 민원처리 절차 및 기준</div>
-                </button>
-                <button class="w-full p-3 bg-muted hover:bg-accent hover:text-accent-foreground rounded-lg text-left transition-colors">
-                    <div class="font-semibold">건축 민원 처리지침</div>
-                    <div class="text-sm text-muted-foreground">건축 관련 민원의 세부 처리방법</div>
-                </button>
-                <button class="w-full p-3 bg-muted hover:bg-accent hover:text-accent-foreground rounded-lg text-left transition-colors">
-                    <div class="font-semibold">환경 민원 처리지침</div>
-                    <div class="text-sm text-muted-foreground">환경오염 관련 민원 대응 방안</div>
-                </button>
+        <div class="panel-content" id="answerContent">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>답변을 생성하고 있습니다...</p>
             </div>
         </div>
-        <div class="p-5 border-t border-border">
-            <button class="w-full px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors" id="closeFromGuideline">
-                닫기
+        <div class="panel-actions">
+            <button id="editAnswerBtn" class="action-btn edit-btn">
+                <i class="fas fa-edit"></i> 수정
             </button>
+            <button id="copyAnswerBtn" class="action-btn copy-btn">
+                <i class="fas fa-copy"></i> 복사
+            </button>
+        </div>
+    </div>
+
+    <div class="right-laws" id="lawPanel">
+        <div class="panel-header">
+            <h3>⚖️ 관련법령</h3>
+        </div>
+        <div class="panel-content" id="lawContent">
+            <div class="law-item">
+                <h4>민원사무처리에 관한 법률</h4>
+                <p>제1조 (목적) 이 법은 민원사무의 처리에 관한 기본사항을 정함으로써...</p>
+            </div>
+            <div class="law-item">
+                <h4>행정절차법</h4>
+                <p>제1조 (목적) 이 법은 행정청의 처리가 국민의 권리와 의무에 직접적인 영향을 미치는...</p>
+            </div>
+        </div>
+        <div class="panel-actions">
+            <button id="editLawBtn" class="action-btn edit-btn">
+                <i class="fas fa-edit"></i> 수정
+            </button>
+            <button id="copyLawBtn" class="action-btn copy-btn">
+                <i class="fas fa-copy"></i> 복사
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 법령 편집 다단계 패널 (기존 패널들 위에 슬라이드) -->
+<div class="law-edit-panel" id="lawEditPanel">
+    <!-- 1단계: 지침 목록 -->
+    <div class="law-edit-step" id="guidelineStep">
+        <div class="law-edit-header">
+            <h3>관련 지침 선택</h3>
+        </div>
+        <div class="law-edit-content">
+            <div class="guideline-list" id="guidelineList">
+                <!-- 지침 버튼들이 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
+        <div class="law-edit-actions">
+            <button class="law-edit-btn close-btn" id="closeFromGuideline">닫기</button>
         </div>
     </div>
 
     <!-- 2단계: 조항 목록 -->
-    <div class="h-full flex-col hidden" id="articleStep">
-        <div class="p-5 border-b border-border">
-            <h3 class="text-xl font-bold text-card-foreground" id="selectedGuidelineTitle">선택된 지침</h3>
+    <div class="law-edit-step" id="articleStep" style="display: none;">
+        <div class="law-edit-header">
+            <h3 id="selectedGuidelineTitle">선택된 지침</h3>
         </div>
-        <div class="flex-1 overflow-y-auto p-5">
-            <div class="space-y-2" id="articleList">
+        <div class="law-edit-content">
+            <div class="article-list" id="articleList">
                 <!-- 조항 버튼들이 여기에 동적으로 추가됩니다 -->
             </div>
         </div>
-        <div class="p-5 border-t border-border space-y-2">
-            <button class="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors" id="backToGuideline">
-                <i class="fas fa-arrow-left mr-2"></i>뒤로가기
-            </button>
-            <button class="w-full px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors" id="closeFromArticle">
-                닫기
-            </button>
+        <div class="law-edit-actions">
+            <button class="law-edit-btn back-btn" id="backToGuideline">뒤로가기</button>
+            <button class="law-edit-btn close-btn" id="closeFromArticle">닫기</button>
         </div>
     </div>
 
     <!-- 3단계: 항 목록 (복수선택 가능) -->
-    <div class="h-full flex-col hidden" id="clauseStep">
-        <div class="p-5 border-b border-border">
-            <h3 class="text-xl font-bold text-card-foreground" id="selectedArticleTitle">선택된 조항</h3>
+    <div class="law-edit-step" id="clauseStep" style="display: none;">
+        <div class="law-edit-header">
+            <h3 id="selectedArticleTitle">선택된 조항</h3>
         </div>
-        <div class="flex-1 overflow-y-auto p-5">
-            <div class="space-y-2" id="clauseList">
-                <!-- 항 체크박스들이 여기에 동적으로 추가됩니다 -->
+        <div class="law-edit-content">
+            <div class="clause-list" id="clauseList">
+                <!-- 항 버튼들이 여기에 동적으로 추가됩니다 -->
             </div>
         </div>
-        <div class="p-5 border-t border-border space-y-2">
-            <button class="w-full px-4 py-2 bg-accent text-accent-foreground rounded-lg hover:bg-accent/80 transition-colors font-semibold" id="applySelected">
-                <i class="fas fa-check mr-2"></i>선택된 항 적용
-            </button>
-            <button class="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors" id="backToArticle">
-                <i class="fas fa-arrow-left mr-2"></i>뒤로가기
-            </button>
-            <button class="w-full px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors" id="closeFromClause">
-                닫기
-            </button>
+        <div class="law-edit-actions">
+            <button class="law-edit-btn apply-btn" id="applySelected">선택된 항 적용</button>
+            <button class="law-edit-btn back-btn" id="backToArticle">뒤로가기</button>
+            <button class="law-edit-btn close-btn" id="closeFromClause">닫기</button>
         </div>
     </div>
 </div>
