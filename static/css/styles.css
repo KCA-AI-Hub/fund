@@ -539,6 +539,62 @@ body.has-panels .chat-pane {
     position: relative;
 }
 
+/* 답변 섹션 스타일 */
+.answer-section {
+    margin-bottom: 24px;
+    padding: 16px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border-left: 4px solid #10a37f;
+}
+
+.answer-section:last-child {
+    margin-bottom: 0;
+}
+
+.answer-section h4 {
+    color: #1f2937;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.answer-section p {
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0 0 12px 0;
+}
+
+.answer-section p:last-child {
+    margin-bottom: 0;
+}
+
+.answer-section ul,
+.answer-section ol {
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+    padding-left: 24px;
+}
+
+.answer-section li {
+    margin-bottom: 8px;
+}
+
+.answer-section li:last-child {
+    margin-bottom: 0;
+}
+
+.answer-section strong {
+    color: #1f2937;
+    font-weight: 600;
+}
+
 .loading-spinner {
     display: flex;
     flex-direction: column;

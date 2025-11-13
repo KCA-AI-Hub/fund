@@ -1,15 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(uv:*)",
-      "Bash(git rm:*)",
-      "Bash(git filter-branch:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git reset:*)",
-      "Bash(git push:*)",
-      "Bash(mkdir:*)",
-      "Bash(cp:*)"
+      "Bash(cat:*)",
+      "Bash(xargs cat:*)",
+      "Bash(xargs:*)",
+      "Bash(python:*)",
+      "Bash(uv sync:*)"
     ],
     "deny": [],
     "ask": []

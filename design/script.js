@@ -21,7 +21,12 @@ class ComplaintChatbot {
         this.isAnswerPanelActive = false;
         this.generateAnswerBtn = null; // 동적으로 생성할 버튼
         this.isEditMode = false; // 수정 모드 상태
-        
+
+        // 2단계 플로우를 위한 상태
+        this.awaitingConfirmation = false;  // 확인 대기 중
+        this.pendingQuestion = null;        // 대기 중인 질문
+        this.lastBotResponse = null;        // API 응답 저장 (suggested_answer, related_laws)
+
         this.initializeEventListeners();
         this.createNewChat();
     }
@@ -90,7 +95,7 @@ class ComplaintChatbot {
     sendMessage() {
         const message = this.messageInput.value.trim();
         if (!message) return;
-        
+
         // 사용자 메시지 추가
         const userMessage = {
             type: 'user',
@@ -98,18 +103,174 @@ class ComplaintChatbot {
             timestamp: new Date()
         };
         this.addMessage(userMessage);
-        
+
         // 답변생성 버튼 제거 (사용자가 새 메시지 입력)
         this.removeGenerateAnswerBtn();
-        
+
         // 입력창 초기화
         this.messageInput.value = '';
         this.autoResizeTextarea();
-        
-        // 챗봇 응답 시뮬레이션
-        setTimeout(() => {
-            this.simulateBotResponse(message);
-        }, 1000);
+
+        // 2단계 플로우 처리
+        if (this.awaitingConfirmation) {
+            // 확인 대기 중: 사용자 응답이 확인인지 체크
+            const isConfirmation = this.isConfirmationResponse(message);
+
+            if (isConfirmation) {
+                // 확인됨: 실제 FAQ RAG 답변 생성
+                setTimeout(() => {
+                    this.generateActualAnswer(this.pendingQuestion);
+                }, 500);
+            } else {
+                // 확인되지 않음: 상태 리셋 및 안내
+                this.awaitingConfirmation = false;
+                this.pendingQuestion = null;
+
+                const resetMessage = {
+                    type: 'bot',
+                    content: '알겠습니다. 다시 질문해주시면 도와드리겠습니다.',
+                    timestamp: new Date()
+                };
+                setTimeout(() => {
+                    this.addMessage(resetMessage);
+                }, 500);
+            }
+        } else {
+            // 일반 플로우: 1단계 확인 질문 생성
+            setTimeout(() => {
+                this.confirmQuestion(message);
+            }, 500);
+        }
+    }
+
+    // 사용자 응답이 확인(긍정)인지 판단
+    isConfirmationResponse(message) {
+        const confirmWords = ['네', '맞아요', '맞습니다', '예', 'yes', 'ok', '응', '맞음', '맞', '그래'];
+        const lowerMessage = message.toLowerCase().trim();
+
+        return confirmWords.some(word => lowerMessage.includes(word));
+    }
+
+    // 1단계: 질문 확인 (API 호출)
+    async confirmQuestion(question) {
+        try {
+            const response = await fetch('/api/chat/confirm', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: question,
+                    session_id: this.currentSessionId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API 호출 실패: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                // 확인 메시지를 봇 메시지로 추가
+                const confirmMessage = {
+                    type: 'bot',
+                    content: data.message,
+                    timestamp: new Date()
+                };
+                this.addMessage(confirmMessage);
+
+                // 상태 설정
+                this.awaitingConfirmation = true;
+                this.pendingQuestion = question;
+
+                return true;
+            } else {
+                throw new Error(data.error || '확인 질문 생성 실패');
+            }
+
+        } catch (error) {
+            console.error('confirmQuestion 오류:', error);
+
+            // 에러 메시지 표시
+            const errorMessage = {
+                type: 'bot',
+                content: '질문 확인 중 오류가 발생했습니다. 다시 시도해주세요.',
+                timestamp: new Date()
+            };
+            this.addMessage(errorMessage);
+
+            return false;
+        }
+    }
+
+    // 2단계: 실제 FAQ RAG 답변 생성 (API 호출)
+    async generateActualAnswer(question) {
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: question,
+                    session_id: this.currentSessionId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API 호출 실패: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                // 실제 답변을 봇 메시지로 추가
+                const answerMessage = {
+                    type: 'bot',
+                    content: data.message,
+                    timestamp: new Date()
+                };
+                this.addMessage(answerMessage);
+
+                // API 응답 저장 (suggested_answer, related_laws 포함)
+                this.lastBotResponse = {
+                    suggested_answer: data.suggested_answer || null,
+                    related_laws: data.related_laws || [],
+                    metadata: data.metadata || {}
+                };
+
+                // 상태 리셋
+                this.awaitingConfirmation = false;
+                this.pendingQuestion = null;
+
+                // 답변생성 버튼 표시
+                setTimeout(() => {
+                    this.showGenerateAnswerBtn();
+                }, 500);
+
+                return true;
+            } else {
+                throw new Error(data.error || '답변 생성 실패');
+            }
+
+        } catch (error) {
+            console.error('generateActualAnswer 오류:', error);
+
+            // 에러 메시지 표시
+            const errorMessage = {
+                type: 'bot',
+                content: '답변 생성 중 오류가 발생했습니다. 다시 시도해주세요.',
+                timestamp: new Date()
+            };
+            this.addMessage(errorMessage);
+
+            // 상태 리셋
+            this.awaitingConfirmation = false;
+            this.pendingQuestion = null;
+
+            return false;
+        }
     }
     
     simulateBotResponse(userMessage) {
@@ -381,20 +542,26 @@ class ComplaintChatbot {
     }
     
     generateAnswer() {
-        const lastUserMessage = this.messages.filter(m => m.type === 'user').pop();
-        if (!lastUserMessage) return;
-        
-        const answer = this.createDetailedAnswer(lastUserMessage.content);
-        this.answerContent.innerHTML = answer;
+        // FAQ RAG 데이터가 있으면 사용, 없으면 fallback
+        if (this.lastBotResponse && this.lastBotResponse.suggested_answer) {
+            this.answerContent.innerHTML = this.lastBotResponse.suggested_answer;
+        } else {
+            // Fallback: 마지막 사용자 메시지 기반 더미 답변
+            const lastUserMessage = this.messages.filter(m => m.type === 'user').pop();
+            if (!lastUserMessage) return;
+
+            const answer = this.createDetailedAnswer(lastUserMessage.content);
+            this.answerContent.innerHTML = answer;
+        }
     }
-    
+
     createDetailedAnswer(userMessage) {
         return `
             <div class="answer-text">
                 <h4>📋 민원 처리 답변</h4>
                 <p>입력하신 민원 내용: "${userMessage}"</p>
                 <p>해당 민원에 대한 상세한 답변을 제공해드립니다.</p>
-                
+
                 <div class="answer-details">
                     <div class="detail-item">
                         <strong>처리 절차:</strong> 민원 접수 → 검토 → 답변 작성 → 통보
@@ -406,40 +573,59 @@ class ComplaintChatbot {
                         <strong>담당 부서:</strong> 민원처리과
                     </div>
                 </div>
-                
+
                 <p>추가 문의사항이 있으시면 언제든 연락주세요.</p>
             </div>
         `;
     }
     
     updateLawContent() {
-        const laws = [
-            {
-                title: '민원사무처리에 관한 법률',
-                content: '제1조 (목적) 이 법은 민원사무의 처리에 관한 기본사항을 정함으로써 민원사무의 신속하고 공정한 처리와 국민의 권익보호를 도모함을 목적으로 한다.',
-                articles: ['제1조', '제2조', '제3조']
-            },
-            {
-                title: '행정절차법',
-                content: '제1조 (목적) 이 법은 행정청의 처리가 국민의 권리와 의무에 직접적인 영향을 미치는 행정절차에 대하여 공통적으로 적용될 사항을 규정함으로써 행정의 공정성과 투명성을 확보하고 국민의 권익을 보호함을 목적으로 한다.',
-                articles: ['제1조', '제2조', '제3조']
-            },
-            {
-                title: '정보공개법',
-                content: '제1조 (목적) 이 법은 공공기관이 보유·관리하는 정보를 국민의 알권리 보장과 국정에 대한 국민의 참여와 국정에 대한 국민의 감시를 위하여 국민에게 공개하도록 함을 목적으로 한다.',
-                articles: ['제1조', '제2조', '제3조']
-            }
-        ];
-        
-        this.lawContent.innerHTML = laws.map(law => `
-            <div class="law-item">
-                <h4>${law.title}</h4>
-                <p>${law.content}</p>
-                <div class="law-articles">
-                    ${law.articles.map(article => `<span class="article-tag">${article}</span>`).join('')}
+        // ========================================
+        // 🔗 관련법령 데이터 연결 (FAQ RAG 기반)
+        // ========================================
+
+        // FAQ RAG 데이터가 있으면 사용, 없으면 fallback
+        if (this.lastBotResponse && this.lastBotResponse.related_laws && this.lastBotResponse.related_laws.length > 0) {
+            const laws = this.lastBotResponse.related_laws;
+
+            this.lawContent.innerHTML = laws.map(law => `
+                <div class="law-item">
+                    <h4>${law.title || 'N/A'}</h4>
+                    <p>${law.content || law.summary || 'N/A'}</p>
+                    ${law.source ? `<p><small>출처: ${law.source}</small></p>` : ''}
+                    ${law.faq_id ? `<p><small>FAQ ID: ${law.faq_id}</small></p>` : ''}
                 </div>
-            </div>
-        `).join('');
+            `).join('');
+        } else {
+            // Fallback: 더미 법령 데이터
+            const laws = [
+                {
+                    title: '민원사무처리에 관한 법률',
+                    content: '제1조 (목적) 이 법은 민원사무의 처리에 관한 기본사항을 정함으로써 민원사무의 신속하고 공정한 처리와 국민의 권익보호를 도모함을 목적으로 한다.',
+                    articles: ['제1조', '제2조', '제3조']
+                },
+                {
+                    title: '행정절차법',
+                    content: '제1조 (목적) 이 법은 행정청의 처리가 국민의 권리와 의무에 직접적인 영향을 미치는 행정절차에 대하여 공통적으로 적용될 사항을 규정함으로써 행정의 공정성과 투명성을 확보하고 국민의 권익을 보호함을 목적으로 한다.',
+                    articles: ['제1조', '제2조', '제3조']
+                },
+                {
+                    title: '정보공개법',
+                    content: '제1조 (목적) 이 법은 공공기관이 보유·관리하는 정보를 국민의 알권리 보장과 국정에 대한 국민의 참여와 국정에 대한 국민의 감시를 위하여 국민에게 공개하도록 함을 목적으로 한다.',
+                    articles: ['제1조', '제2조', '제3조']
+                }
+            ];
+
+            this.lawContent.innerHTML = laws.map(law => `
+                <div class="law-item">
+                    <h4>${law.title}</h4>
+                    <p>${law.content}</p>
+                    <div class="law-articles">
+                        ${law.articles.map(article => `<span class="article-tag">${article}</span>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
     }
     
     saveChatSession() {

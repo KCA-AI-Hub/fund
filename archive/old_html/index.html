@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>내부 직원용 민원처리 챗봇</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chatbot-container {
+            max-width: 1200px;
+            width: 100%;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chatbot-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chatbot-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .chatbot-avatar {
+            font-size: 2.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chatbot-title h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .chatbot-title p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .chatbot-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #4ade80;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .chat-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e5e7eb;
+        }
+
+        .result-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f8fafc;
+        }
+
+        .chatbot-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8fafc;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+        }
+
+        .user-message {
+            justify-content: flex-end;
+        }
+
+        .bot-message {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+        }
+
+        .user-message .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot-message .message-content {
+            background: white;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .message-text {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 4px;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            text-align: right;
+        }
+
+        .bot-message .message-time {
+            text-align: left;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: #9ca3af;
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typing {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .chatbot-input {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .input-container textarea {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 25px;
+            font-size: 0.95rem;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: inherit;
+        }
+
+        .input-container textarea:focus {
+            border-color: #667eea;
+        }
+
+        .input-container textarea:disabled {
+            background: #f9fafb;
+            color: #9ca3af;
+        }
+
+        .send-button {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .send-button:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .send-button:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .generate-button {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .generate-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .generate-button:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .quick-actions button {
+            padding: 8px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 20px;
+            background: white;
+            color: #374151;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-actions button:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }
+
+        /* 결과 섹션 스타일 */
+        .result-header {
+            padding: 20px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .result-header h2 {
+            font-size: 1.3rem;
+            color: #374151;
+            margin-bottom: 10px;
+        }
+
+        .result-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .answer-section {
+            flex: 1;
+            padding: 20px;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            overflow-y: auto;
+        }
+
+        .similar-cases-section {
+            flex: 1;
+            padding: 20px;
+            background: #f8fafc;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .answer-content {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .answer-text {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #374151;
+            margin-bottom: 15px;
+            white-space: pre-line;
+        }
+
+        .legal-basis {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .legal-basis h4 {
+            color: #0369a1;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .legal-basis ul {
+            margin-left: 20px;
+            color: #374151;
+            font-size: 0.85rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .action-button {
+            padding: 8px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: white;
+            color: #374151;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .action-button:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }
+
+        .copy-button {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+
+        .copy-button:hover {
+            background: #059669;
+            border-color: #059669;
+        }
+
+        .edit-button {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .edit-button:hover {
+            background: #2563eb;
+            border-color: #2563eb;
+        }
+
+        .similar-case {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .similar-case:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+
+        .case-title {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .case-content {
+            color: #6b7280;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .case-tags {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .case-tag {
+            background: #f3f4f6;
+            color: #374151;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .chatbot-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chatbot-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .chatbot-messages::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .chatbot-messages::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        @media (max-width: 768px) {
+            .chatbot-container {
+                border-radius: 0;
+                height: 100vh;
+            }
+            
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .chat-section {
+                border-right: none;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            
+            .result-content {
+                flex-direction: column;
+            }
+            
+            .answer-section {
+                border-right: none;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            
+            .chatbot-header {
+                padding: 15px;
+            }
+            
+            .chatbot-title h1 {
+                font-size: 1.3rem;
+            }
+            
+            .chatbot-avatar {
+                width: 50px;
+                height: 50px;
+                font-size: 2rem;
+            }
+            
+            .message-content {
+                max-width: 85%;
+            }
+            
+            .quick-actions {
+                justify-content: center;
+            }
+            
+            .quick-actions button {
+                font-size: 0.8rem;
+                padding: 6px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chatbot-container">
+        <div class="chatbot-header">
+            <div class="chatbot-title">
+                <div class="chatbot-avatar">🤖</div>
+                <div>
+                    <h1>내부 직원용 민원처리 챗봇</h1>
+                    <p>민원 상담 지원 시스템</p>
+                </div>
+            </div>
+            <div class="chatbot-status">
+                <span class="status-dot"></span>
+                온라인
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- 채팅 섹션 -->
+            <div class="chat-section" id="chatSection">
+                <div class="chatbot-messages" id="messages">
+                    <!-- 메시지들이 여기에 동적으로 추가됩니다 -->
+                </div>
+
+                <div class="chatbot-input">
+                    <div class="input-container">
+                        <textarea 
+                            id="messageInput" 
+                            placeholder="민원 내용을 입력하거나 질문하세요..."
+                            rows="3"
+                        ></textarea>
+                        <button id="sendButton" class="send-button">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <button id="generateButton" class="generate-button">
+                        📋 대답 생성 완료
+                    </button>
+                    
+                    <div class="quick-actions">
+                        <button onclick="setQuickMessage('도로 보수 요청 민원이 들어왔는데 어떻게 처리해야 하나요?')">도로 보수</button>
+                        <button onclick="setQuickMessage('개인정보 관련 민원인데 관련 법령이 있나요?')">개인정보</button>
+                        <button onclick="setQuickMessage('예산이 소요되는 민원인데 보고해야 하나요?')">예산 민원</button>
+                        <button onclick="setQuickMessage('유사한 민원 사례가 있나요?')">유사 사례</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 결과 섹션 -->
+            <div class="result-section hidden" id="resultSection">
+                <div class="result-header">
+                    <h2>📋 민원 처리 결과</h2>
+                </div>
+                
+                <div class="result-content">
+                    <!-- 답변 섹션 -->
+                    <div class="answer-section">
+                        <div class="section-title">
+                            💬 답변 및 근거
+                        </div>
+                        
+                        <div class="answer-content">
+                            <div class="answer-text" id="answerText">
+                                민원 내용을 입력하고 "대답 생성 완료" 버튼을 눌러주세요.
+                            </div>
+                            
+                            <div class="legal-basis">
+                                <h4>📚 관련 법령 및 근거</h4>
+                                <ul id="legalBasis">
+                                    <li>민원 내용에 따라 관련 법령이 표시됩니다.</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="action-buttons">
+                                <button class="action-button copy-button" onclick="copyAnswer()">
+                                    📋 답변 복사
+                                </button>
+                                <button class="action-button edit-button" onclick="editAnswer()">
+                                    ✏️ 답변 수정
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 유사 사례 섹션 -->
+                    <div class="similar-cases-section">
+                        <div class="section-title">
+                            🔍 유사 사례
+                        </div>
+                        
+                        <div id="similarCases">
+                            <div class="similar-case">
+                                <div class="case-title">도로 보수 요청 민원</div>
+                                <div class="case-content">
+                                    시민이 도로 파손으로 인한 보수 요청 민원을 제기한 사례입니다. 
+                                    도로관리과와 협의하여 2주 내 보수 완료 후 민원인에게 답변했습니다.
+                                </div>
+                                <div class="case-tags">
+                                    <span class="case-tag">도로</span>
+                                    <span class="case-tag">보수</span>
+                                    <span class="case-tag">2주</span>
+                                </div>
+                            </div>
+                            
+                            <div class="similar-case">
+                                <div class="case-title">개인정보 보호 민원</div>
+                                <div class="case-content">
+                                    개인정보 유출 의심 민원에 대해 개인정보보호법에 근거하여 
+                                    조사 후 결과를 통보한 사례입니다.
+                                </div>
+                                <div class="case-tags">
+                                    <span class="case-tag">개인정보</span>
+                                    <span class="case-tag">보호법</span>
+                                    <span class="case-tag">조사</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 내부 직원용 민원처리 챗봇 응답 데이터
+        const mockResponses = {
+            '도로': {
+                answer: '도로 보수 요청 민원 처리 절차:\n\n1. 민원 내용 확인 및 현장 조사\n2. 도로관리과와 협의\n3. 보수 일정 수립 (일반적으로 2주 이내)\n4. 민원인에게 처리 일정 안내\n5. 보수 완료 후 결과 통보',
+                legalBasis: [
+                    '도로법 제2조 (도로의 정의)',
+                    '도로법 제19조 (도로의 관리)',
+                    '민원처리에 관한 법률 제8조 (처리기간)'
+                ],
+                similarCases: [
+                    {
+                        title: '도로 파손 보수 요청',
+                        content: '시민이 도로 파손으로 인한 보수 요청 민원을 제기한 사례입니다. 도로관리과와 협의하여 2주 내 보수 완료 후 민원인에게 답변했습니다.',
+                        tags: ['도로', '보수', '2주']
+                    },
+                    {
+                        title: '도로 확장 공사 민원',
+                        content: '도로 확장 공사로 인한 소음 민원에 대해 공사 일정 조정 및 방음 시설 설치로 해결한 사례입니다.',
+                        tags: ['도로', '공사', '소음']
+                    }
+                ]
+            },
+            '개인정보': {
+                answer: '개인정보 관련 민원 처리 절차:\n\n1. 민원 내용 검토 및 개인정보보호법 적용 검토\n2. 개인정보보호위원회 협의 (필요시)\n3. 관련 부서 조사 및 개선 조치\n4. 민원인에게 처리 결과 통보\n5. 재발 방지 대책 수립',
+                legalBasis: [
+                    '개인정보보호법 제1조 (목적)',
+                    '개인정보보호법 제15조 (개인정보의 수집·이용)',
+                    '개인정보보호법 제17조 (개인정보의 제3자 제공)',
+                    '개인정보보호법 제71조 (민원처리)'
+                ],
+                similarCases: [
+                    {
+                        title: '개인정보 유출 의심',
+                        content: '개인정보 유출 의심 민원에 대해 개인정보보호법에 근거하여 조사 후 결과를 통보한 사례입니다.',
+                        tags: ['개인정보', '보호법', '조사']
+                    },
+                    {
+                        title: '개인정보 수집 동의',
+                        content: '개인정보 수집에 대한 동의 철회 요청 민원을 처리한 사례입니다.',
+                        tags: ['개인정보', '동의', '철회']
+                    }
+                ]
+            },
+            '예산': {
+                answer: '예산 소요 민원 처리 절차:\n\n1. 예산 소요 금액 산정\n2. 예산 확보 방안 검토\n3. 관련 부서 협의 및 예산 배정 신청\n4. 상급자 보고 및 승인\n5. 처리 일정 조정 및 민원인 안내',
+                legalBasis: [
+                    '지방재정법 제2조 (지방자치단체의 재정운영)',
+                    '지방재정법 제31조 (예산의 편성)',
+                    '민원처리에 관한 법률 제9조 (처리방법)'
+                ],
+                similarCases: [
+                    {
+                        title: '시설 설치 예산 요청',
+                        content: '주민 편의시설 설치 요청 민원에 대해 예산 확보 후 설치를 진행한 사례입니다.',
+                        tags: ['예산', '시설', '설치']
+                    },
+                    {
+                        title: '도로 개선 예산',
+                        content: '도로 개선 사업 예산 요청 민원을 처리한 사례입니다.',
+                        tags: ['예산', '도로', '개선']
+                    }
+                ]
+            }
+        };
+
+        // 기본 응답들
+        const defaultResponse = {
+            answer: '민원 내용을 구체적으로 알려주시면 더 정확한 답변을 드릴 수 있습니다.\n\n일반적인 민원 처리 절차:\n1. 민원 내용 검토 및 분류\n2. 관련 부서 협의\n3. 처리 방안 수립\n4. 민원인 답변\n5. 처리 완료 및 기록',
+            legalBasis: [
+                '민원처리에 관한 법률 제1조 (목적)',
+                '민원처리에 관한 법률 제8조 (처리기간)',
+                '민원처리에 관한 법률 제9조 (처리방법)'
+            ],
+            similarCases: [
+                {
+                    title: '일반 민원 처리',
+                    content: '일반적인 민원 처리 사례입니다. 민원의 성격에 따라 적절한 처리 절차를 따릅니다.',
+                    tags: ['일반', '민원', '처리']
+                }
+            ]
+        };
+
+        class ChatbotService {
+            async processMessage(userMessage) {
+                // 키워드 매칭을 통한 응답
+                const matchedKey = Object.keys(mockResponses).find(key => 
+                    userMessage.includes(key)
+                );
+                
+                if (matchedKey) {
+                    return mockResponses[matchedKey];
+                }
+
+                return defaultResponse;
+            }
+        }
+
+        // DOM 요소들
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const generateButton = document.getElementById('generateButton');
+        const chatSection = document.getElementById('chatSection');
+        const resultSection = document.getElementById('resultSection');
+        const answerText = document.getElementById('answerText');
+        const legalBasis = document.getElementById('legalBasis');
+        const similarCases = document.getElementById('similarCases');
+        const chatbotService = new ChatbotService();
+
+        let currentComplaint = '';
+        let currentResponse = null;
+
+        // 초기 메시지 추가
+        function addInitialMessage() {
+            const initialMessage = {
+                id: '1',
+                text: '안녕하세요! 내부 직원용 민원처리 챗봇입니다. 민원 내용을 입력하시면 처리 방법을 안내해드리겠습니다.',
+                sender: 'bot',
+                timestamp: new Date()
+            };
+            addMessage(initialMessage);
+        }
+
+        // 메시지 추가 함수
+        function addMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${message.sender === 'user' ? 'user-message' : 'bot-message'}`;
+            
+            const timeString = message.timestamp.toLocaleTimeString('ko-KR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            messageElement.innerHTML = `
+                <div class="message-content">
+                    <div class="message-text">${message.text.replace(/\n/g, '<br>')}</div>
+                    <div class="message-time">${timeString}</div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageElement);
+            scrollToBottom();
+        }
+
+        // 타이핑 인디케이터 추가
+        function addTypingIndicator() {
+            const typingElement = document.createElement('div');
+            typingElement.className = 'message bot-message';
+            typingElement.id = 'typing-indicator';
+            typingElement.innerHTML = `
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(typingElement);
+            scrollToBottom();
+        }
+
+        // 타이핑 인디케이터 제거
+        function removeTypingIndicator() {
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        // 스크롤을 맨 아래로
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 메시지 전송 함수
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            // 사용자 메시지 추가
+            const userMessage = {
+                id: Date.now().toString(),
+                text: text,
+                sender: 'user',
+                timestamp: new Date()
+            };
+            addMessage(userMessage);
+
+            // 민원 내용 저장
+            currentComplaint = text;
+
+            // 입력창 초기화
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+
+            // 타이핑 인디케이터 추가
+            addTypingIndicator();
+
+            // 챗봇 응답 처리
+            try {
+                const response = await chatbotService.processMessage(text);
+                currentResponse = response;
+                
+                // 타이핑 인디케이터 제거
+                removeTypingIndicator();
+
+                // 봇 메시지 추가
+                const botMessage = {
+                    id: (Date.now() + 1).toString(),
+                    text: '민원 내용을 확인했습니다. "대답 생성 완료" 버튼을 눌러 구체적인 답변과 유사 사례를 확인하세요.',
+                    sender: 'bot',
+                    timestamp: new Date()
+                };
+                addMessage(botMessage);
+            } catch (error) {
+                console.error('메시지 처리 오류:', error);
+                removeTypingIndicator();
+                
+                const errorMessage = {
+                    id: (Date.now() + 1).toString(),
+                    text: '죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+                    sender: 'bot',
+                    timestamp: new Date()
+                };
+                addMessage(errorMessage);
+            }
+        }
+
+        // 대답 생성 완료 함수
+        function generateAnswer() {
+            if (!currentComplaint || !currentResponse) {
+                alert('먼저 민원 내용을 입력해주세요.');
+                return;
+            }
+
+            // 답변 표시
+            answerText.textContent = currentResponse.answer;
+
+            // 법령 근거 표시
+            legalBasis.innerHTML = currentResponse.legalBasis.map(basis => 
+                `<li>${basis}</li>`
+            ).join('');
+
+            // 유사 사례 표시
+            similarCases.innerHTML = currentResponse.similarCases.map(caseItem => `
+                <div class="similar-case">
+                    <div class="case-title">${caseItem.title}</div>
+                    <div class="case-content">${caseItem.content}</div>
+                    <div class="case-tags">
+                        ${caseItem.tags.map(tag => `<span class="case-tag">${tag}</span>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            // 결과 섹션 표시
+            resultSection.classList.remove('hidden');
+        }
+
+        // 답변 복사 함수
+        function copyAnswer() {
+            const textToCopy = answerText.textContent;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                alert('답변이 클립보드에 복사되었습니다.');
+            }).catch(err => {
+                console.error('복사 실패:', err);
+                alert('복사에 실패했습니다.');
+            });
+        }
+
+        // 답변 수정 함수
+        function editAnswer() {
+            const newAnswer = prompt('답변을 수정해주세요:', answerText.textContent);
+            if (newAnswer !== null) {
+                answerText.textContent = newAnswer;
+            }
+        }
+
+        // 빠른 메시지 설정
+        function setQuickMessage(text) {
+            messageInput.value = text;
+            messageInput.focus();
+        }
+
+        // 이벤트 리스너들
+        sendButton.addEventListener('click', sendMessage);
+        generateButton.addEventListener('click', generateAnswer);
+
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // 텍스트 영역 자동 높이 조정
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // 초기 메시지 추가
+        addInitialMessage();
+    </script>
+</body>
+</html>

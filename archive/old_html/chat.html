@@ -1,0 +1,2247 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>내부 직원용 민원처리 챗봇</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2.39.3/dist/umd/supabase.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 좌측 사이드바 */
+        .sidebar {
+            width: 320px;
+            background: #f8fafc;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .sidebar-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 15px;
+        }
+
+        .new-chat-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .new-chat-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .chat-item {
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .chat-item:hover {
+            border-color: #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .chat-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .chat-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-title {
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-time {
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+
+        .chat-delete {
+            width: 24px;
+            height: 24px;
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+
+        .chat-item:hover .chat-delete {
+            opacity: 1;
+        }
+
+        .chat-item.active .chat-delete {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .chat-delete:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .chat-item.active .chat-delete:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        /* 메인 컨텐트 영역 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .content-wrapper {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .chat-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .chat-section.collapsed {
+            flex: 0.4;
+        }
+
+        .result-panel {
+            flex: 0.6;
+            background: #f8fafc;
+            border-left: 1px solid #e2e8f0;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .result-panel.show {
+            display: flex;
+        }
+
+        .result-header {
+            padding: 20px;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .result-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .result-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            gap: 15px;
+        }
+
+        .answer-section {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            flex: 1;
+        }
+
+        .generate-btn {
+            width: 100%;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin: 15px 0;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .editable {
+            border: 2px dashed #e2e8f0;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: text;
+            transition: all 0.2s;
+        }
+
+        .editable:hover {
+            border-color: #667eea;
+            background: #f8fafc;
+        }
+
+        .editable.editing {
+            border-color: #667eea;
+            background: white;
+            outline: none;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .answer-text {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #4b5563;
+            margin-bottom: 15px;
+            white-space: pre-line;
+        }
+
+        .legal-section {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .legal-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #0369a1;
+            margin-bottom: 10px;
+        }
+
+        .legal-list {
+            padding: 0;
+            margin: 0;
+        }
+
+        .legal-list div {
+            font-size: 0.85rem;
+            color: #374151;
+            margin-bottom: 8px;
+            padding-left: 16px;
+            position: relative;
+            line-height: 1.5;
+        }
+
+        .legal-list div:before {
+            content: "•";
+            color: #0369a1;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            color: #374151;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .action-btn:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }
+
+        .action-btn.edit {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .action-btn.edit:hover {
+            background: #2563eb;
+            border-color: #2563eb;
+        }
+
+        .action-btn.copy {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+
+        .action-btn.copy:hover {
+            background: #059669;
+            border-color: #059669;
+        }
+
+        /* 법령 선택 슬라이드 패널 */
+        .legal-selector-panel {
+            position: fixed;
+            top: 0;
+            right: -50%;
+            width: 50%;
+            height: 100vh;
+            background: white;
+            z-index: 1000;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+            border-left: 1px solid #e2e8f0;
+        }
+
+        .legal-selector-panel.show {
+            right: 0;
+        }
+
+        /* 오버레이 */
+        .legal-selector-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .legal-selector-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .legal-selector-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .legal-selector-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .legal-selector-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .legal-category-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .legal-category-item {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .legal-category-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .legal-category-item.selected {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            color: #1e40af;
+        }
+
+        .legal-category-item.selected:hover {
+            background: #bfdbfe;
+        }
+
+        .legal-category-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .legal-category-desc {
+            font-size: 0.85rem;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+
+        .legal-list-item {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .legal-list-item:hover {
+            border-color: #667eea;
+            background: #f8fafc;
+        }
+
+        .legal-item-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 5px;
+        }
+
+        .legal-item-desc {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+
+        .legal-article-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .legal-article-item:hover {
+            border-color: #667eea;
+            background: #e0e7ff;
+        }
+
+        .legal-article-item.selected {
+            border-color: #667eea;
+            background: #e0e7ff;
+        }
+
+        .legal-article-number {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 5px;
+        }
+
+        .legal-article-text {
+            font-size: 0.85rem;
+            color: #4b5563;
+            line-height: 1.5;
+        }
+
+        .legal-selector-footer {
+            padding: 20px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+            display: flex;
+            gap: 10px;
+        }
+
+        .footer-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .footer-btn.primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .footer-btn.primary:hover {
+            background: #5a67d8;
+        }
+
+        .footer-btn.secondary {
+            background: #e2e8f0;
+            color: #374151;
+        }
+
+        .footer-btn.secondary:hover {
+            background: #d1d5db;
+        }
+
+        .main-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-avatar {
+            font-size: 2rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .header-info h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .header-info p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+            font-size: 0.85rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #4ade80;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8fafc;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.bot {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            position: relative;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.bot .message-content {
+            background: white;
+            color: #374151;
+            border: 1px solid #e2e8f0;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .message-text {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 4px;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            text-align: right;
+        }
+
+        .message.bot .message-time {
+            text-align: left;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: inherit;
+            max-height: 120px;
+        }
+
+        .message-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .send-btn:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .quick-btn {
+            padding: 8px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            background: white;
+            color: #475569;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+
+        .typing-indicator span {
+            width: 6px;
+            height: 6px;
+            background: #94a3b8;
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typing {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #64748b;
+            text-align: center;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state h2 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            color: #475569;
+        }
+
+        .empty-state p {
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+
+        /* 스크롤바 스타일 */
+        .chat-list::-webkit-scrollbar,
+        .messages-container::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-list::-webkit-scrollbar-track,
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-list::-webkit-scrollbar-thumb,
+        .messages-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+
+        .chat-list::-webkit-scrollbar-thumb:hover,
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* 반응형 디자인 */
+        @media (max-width: 768px) {
+            .app-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: 200px;
+                border-right: none;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            
+            .chat-list {
+                flex-direction: row;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 10px 15px;
+            }
+            
+            .chat-item {
+                min-width: 200px;
+                margin-right: 10px;
+                margin-bottom: 0;
+            }
+            
+            .main-header {
+                padding: 15px;
+            }
+            
+            .header-info h1 {
+                font-size: 1.1rem;
+            }
+            
+            .header-avatar {
+                width: 40px;
+                height: 40px;
+                font-size: 1.5rem;
+            }
+
+            .content-wrapper {
+                flex-direction: column;
+            }
+
+            .chat-section.collapsed {
+                flex: 1;
+            }
+
+            .result-panel {
+                flex: 0.5;
+                border-left: none;
+                border-top: 1px solid #e2e8f0;
+            }
+
+            .result-content {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .answer-section {
+                flex: none;
+            }
+
+            /* 모바일에서는 법령 선택 패널 전체 화면 */
+            .legal-selector-panel {
+                right: -100%;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 좌측 사이드바 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">채팅 내역</div>
+                <button class="new-chat-btn" onclick="createNewChat()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 5V19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    새 대화
+                </button>
+            </div>
+            <div class="chat-list" id="chatList">
+                <!-- 채팅 목록이 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
+
+        <!-- 메인 컨텐트 -->
+        <div class="main-content">
+            <div class="main-header">
+                <div class="header-title">
+                    <div class="header-avatar">🤖</div>
+                    <div class="header-info">
+                        <h1>내부 직원용 민원처리 챗봇</h1>
+                        <p>민원 상담 지원 시스템</p>
+                    </div>
+                </div>
+                <div class="status-indicator">
+                    <span class="status-dot"></span>
+                    온라인
+                </div>
+            </div>
+
+            <div class="content-wrapper">
+                <div class="chat-section" id="chatSection">
+                    <div class="chat-area">
+                        <div class="messages-container" id="messagesContainer">
+                            <div class="empty-state" id="emptyState">
+                                <div class="empty-state-icon">💬</div>
+                                <h2>새로운 대화를 시작하세요</h2>
+                                <p>민원 내용을 입력하시면 처리 방법을 안내해드리겠습니다.</p>
+                            </div>
+                        </div>
+
+                        <div class="input-area">
+                            <div class="input-container">
+                                <textarea 
+                                    id="messageInput" 
+                                    class="message-input"
+                                    placeholder="민원 내용을 입력하세요..."
+                                    rows="1"
+                                ></textarea>
+                                <button id="sendBtn" class="send-btn">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="quick-actions">
+                                <button class="quick-btn" onclick="setQuickMessage('도로 보수 요청 민원이 들어왔는데 어떻게 처리해야 하나요?')">도로 보수</button>
+                                <button class="quick-btn" onclick="setQuickMessage('개인정보 관련 민원인데 관련 법령이 있나요?')">개인정보</button>
+                                <button class="quick-btn" onclick="setQuickMessage('예산이 소요되는 민원인데 보고해야 하나요?')">예산 민원</button>
+                                <button class="quick-btn" onclick="setQuickMessage('유사한 민원 사례가 있나요?')">유사 사례</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 답변 및 근거 패널 -->
+                <div class="result-panel" id="resultPanel">
+                    <div class="result-header">
+                        <h3>📋 민원 처리 결과</h3>
+                    </div>
+                    <div class="result-content">
+                        <!-- 답변 및 근거 섹션 -->
+                        <div class="answer-section">
+                            <div class="section-title">
+                                💬 답변 및 근거
+                            </div>
+                            <div class="answer-text editable" id="answerText" contenteditable="false">
+                                민원 내용에 대한 답변이 여기에 표시됩니다.
+                            </div>
+                            <div class="action-buttons">
+                                <button class="action-btn edit" onclick="editAnswer()">
+                                    ✏️ 수정
+                                </button>
+                                <button class="action-btn copy" onclick="copyAnswer()">
+                                    📋 복사
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 관련 법령 섹션 -->
+                        <div class="answer-section">
+                            <div class="section-title">
+                                📚 관련 법령
+                            </div>
+                            <div class="legal-section">
+                                <div class="legal-title">관련 법령 및 근거</div>
+                                <div class="legal-list editable" id="legalList" contenteditable="false">
+                                    <div>민원처리에 관한 법률 제1조 (목적)</div>
+                                    <div>민원처리에 관한 법률 제8조 (처리기간)</div>
+                                    <div>민원처리에 관한 법률 제9조 (처리방법)</div>
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <button class="action-btn edit" onclick="editLegal()">
+                                    ✏️ 수정
+                                </button>
+                                <button class="action-btn copy" onclick="copyLegal()">
+                                    📋 복사
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 법령 선택 오버레이 -->
+    <div class="legal-selector-overlay" id="legalSelectorOverlay" onclick="closeLegalSelector()"></div>
+    
+    <!-- 법령 선택 슬라이드 패널 -->
+    <div class="legal-selector-panel" id="legalSelectorPanel">
+        <div class="legal-selector-header">
+            <div class="legal-selector-title" id="legalSelectorTitle">지침 선택</div>
+            <button onclick="closeLegalSelector()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">×</button>
+        </div>
+        <div class="legal-selector-content" id="legalSelectorContent">
+            <!-- 동적으로 내용이 채워집니다 -->
+        </div>
+        <div class="legal-selector-footer" id="legalSelectorFooter">
+            <button class="footer-btn secondary" onclick="closeLegalSelector()">닫기</button>
+        </div>
+    </div>
+
+    <script>
+        // Supabase 클라이언트 초기화
+        const supabaseUrl = 'https://fttztujbbhmaqbvmzuzf.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0dHp0dWpiYmhtYXFidm16dXpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMDA4OTAsImV4cCI6MjA3MTY3Njg5MH0.cyoRqzkxyUXd8bjKoh7576eMkpNgAP2aL0ChPTNHlGM';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        // 전역 변수
+        let currentSessionId = null;
+        let currentUserId = 'user_' + Math.random().toString(36).substr(2, 9); // 임시 사용자 ID
+        let chatSessions = [];
+        let messages = [];
+        let currentLegalStep = 'category'; // category, laws, articles
+        let selectedCategories = []; // 여러 지침 선택 가능
+        let selectedLaws = {}; // 각 지침별 선택된 법령들 {categoryId: [lawIds]}
+        let selectedArticles = {}; // 각 법령별 선택된 조항들 {lawId: [articleIds]}
+
+        // DOM 요소
+        const chatList = document.getElementById('chatList');
+        const messagesContainer = document.getElementById('messagesContainer');
+        const emptyState = document.getElementById('emptyState');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        // 채팅 서비스 클래스
+        class ChatService {
+            // 새로운 채팅 세션 생성
+            static async createSession(userId, sessionName = '새로운 대화') {
+                const { data, error } = await supabase
+                    .from('chat_sessions')
+                    .insert({
+                        user_id: userId,
+                        session_name: sessionName
+                    })
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('세션 생성 오류:', error);
+                    throw error;
+                }
+                return data;
+            }
+
+            // 사용자의 모든 채팅 세션 조회
+            static async getSessions(userId) {
+                const { data, error } = await supabase
+                    .from('chat_sessions')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('updated_at', { ascending: false });
+
+                if (error) {
+                    console.error('세션 조회 오류:', error);
+                    throw error;
+                }
+                return data || [];
+            }
+
+            // 특정 세션의 메시지 조회
+            static async getMessages(sessionId) {
+                const { data, error } = await supabase
+                    .from('chat_messages')
+                    .select('*')
+                    .eq('session_id', sessionId)
+                    .order('created_at', { ascending: true });
+
+                if (error) {
+                    console.error('메시지 조회 오류:', error);
+                    throw error;
+                }
+                return data || [];
+            }
+
+            // 메시지 저장
+            static async saveMessage(sessionId, content, sender) {
+                const { data, error } = await supabase
+                    .from('chat_messages')
+                    .insert({
+                        session_id: sessionId,
+                        content,
+                        sender
+                    })
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('메시지 저장 오류:', error);
+                    throw error;
+                }
+
+                // 세션 업데이트 시간 갱신
+                await supabase
+                    .from('chat_sessions')
+                    .update({ updated_at: new Date().toISOString() })
+                    .eq('id', sessionId);
+
+                return data;
+            }
+
+            // 세션 삭제
+            static async deleteSession(sessionId) {
+                const { error } = await supabase
+                    .from('chat_sessions')
+                    .delete()
+                    .eq('id', sessionId);
+
+                if (error) {
+                    console.error('세션 삭제 오류:', error);
+                    throw error;
+                }
+            }
+
+            // 세션 이름 업데이트
+            static async updateSessionName(sessionId, sessionName) {
+                const { error } = await supabase
+                    .from('chat_sessions')
+                    .update({ session_name: sessionName })
+                    .eq('id', sessionId);
+
+                if (error) {
+                    console.error('세션 이름 업데이트 오류:', error);
+                    throw error;
+                }
+            }
+        }
+
+        // 모든 세션 로드
+        async function loadSessions() {
+            // TODO: 실제 DB 연동 시 활성화
+            /*
+            try {
+                chatSessions = await ChatService.getSessions(currentUserId);
+                renderChatList();
+            } catch (error) {
+                console.error('세션 로드 실패:', error);
+            }
+            */
+            
+            // 임시: 디자인 전용 - 빈 배열로 초기화
+            chatSessions = [];
+            renderChatList();
+        }
+
+        // 채팅 목록 렌더링
+        function renderChatList() {
+            chatList.innerHTML = '';
+            
+            if (chatSessions.length === 0) {
+                chatList.innerHTML = `
+                    <div style="text-align: center; padding: 40px 20px; color: #64748b;">
+                        <p style="margin-bottom: 15px;">아직 대화가 없습니다</p>
+                        <button onclick="createNewChat()" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">새 대화 시작하기</button>
+                    </div>
+                `;
+                return;
+            }
+
+            chatSessions.forEach(session => {
+                const chatItem = document.createElement('div');
+                chatItem.className = `chat-item ${currentSessionId === session.id ? 'active' : ''}`;
+                chatItem.innerHTML = `
+                    <div class="chat-info">
+                        <div class="chat-title">${session.session_name}</div>
+                        <div class="chat-time">${formatDate(session.updated_at)}</div>
+                    </div>
+                    <button class="chat-delete" onclick="deleteSession('${session.id}', event)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                `;
+                
+                chatItem.onclick = (e) => {
+                    if (!e.target.closest('.chat-delete')) {
+                        selectSession(session.id);
+                    }
+                };
+                
+                chatList.appendChild(chatItem);
+            });
+        }
+
+        // 새 채팅 생성
+        async function createNewChat() {
+            // TODO: 실제 DB 저장 기능 구현 시 활성화
+            /*
+            try {
+                const session = await ChatService.createSession(currentUserId);
+                chatSessions.unshift(session);
+                renderChatList();
+                selectSession(session.id);
+            } catch (error) {
+                console.error('새 채팅 생성 실패:', error);
+                alert('새 채팅을 생성할 수 없습니다.');
+            }
+            */
+            
+            // 임시: 디자인 전용 - 알림창 제거됨
+            
+            // 임시 세션 ID 생성 (디자인용)
+            const tempSessionId = 'temp_' + Date.now();
+            currentSessionId = tempSessionId;
+            
+            // 채팅 목록에 임시 세션 추가 (디자인용)
+            const tempSession = {
+                id: tempSessionId,
+                session_name: '새로운 대화',
+                updated_at: new Date().toISOString()
+            };
+            chatSessions.unshift(tempSession);
+            renderChatList();
+            hideEmptyState();
+        }
+
+        // 세션 선택
+        async function selectSession(sessionId) {
+            currentSessionId = sessionId;
+            renderChatList();
+            await loadMessages(sessionId);
+            hideEmptyState();
+        }
+
+        // 메시지 로드
+        async function loadMessages(sessionId) {
+            try {
+                messages = await ChatService.getMessages(sessionId);
+                renderMessages();
+            } catch (error) {
+                console.error('메시지 로드 실패:', error);
+            }
+        }
+
+        // 메시지 렌더링
+        function renderMessages() {
+            messagesContainer.innerHTML = '';
+            
+            messages.forEach(message => {
+                const messageEl = document.createElement('div');
+                messageEl.className = `message ${message.sender}`;
+                messageEl.innerHTML = `
+                    <div class="message-content">
+                        <div class="message-text">${message.content.replace(/\n/g, '<br>')}</div>
+                        <div class="message-time">${formatTime(message.created_at)}</div>
+                    </div>
+                `;
+                messagesContainer.appendChild(messageEl);
+            });
+            
+            scrollToBottom();
+        }
+
+        // 메시지 전송
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            // 세션이 없으면 새로 생성
+            if (!currentSessionId) {
+                await createNewChat();
+            }
+
+            // TODO: 실제 DB 저장 기능 구현 시 활성화
+            /*
+            try {
+                // 사용자 메시지 저장
+                await ChatService.saveMessage(currentSessionId, text, 'user');
+                
+                // 세션 이름 업데이트 (첫 메시지인 경우)
+                if (messages.length === 0) {
+                    const sessionName = text.length > 20 ? text.substring(0, 20) + '...' : text;
+                    await ChatService.updateSessionName(currentSessionId, sessionName);
+                    await loadSessions();
+                }
+
+                messageInput.value = '';
+                messageInput.style.height = 'auto';
+
+                // 메시지 다시 로드
+                await loadMessages(currentSessionId);
+
+                // 타이핑 인디케이터 표시
+                showTypingIndicator();
+
+                // 봇 응답 처리 (실제로는 LLM API 호출)
+                setTimeout(async () => {
+                    const botResponse = await generateBotResponse(text);
+                    await ChatService.saveMessage(currentSessionId, botResponse, 'bot');
+                    await loadMessages(currentSessionId);
+                    hideTypingIndicator();
+                }, 1500);
+
+            } catch (error) {
+                console.error('메시지 전송 실패:', error);
+                alert('메시지를 전송할 수 없습니다.');
+            }
+            */
+
+            // 임시: 디자인 전용 - UI만 구현 (알림창 제거)
+            
+            // 사용자 메시지를 화면에 표시 (임시)
+            addMessageToUI(text, 'user');
+            
+            // 입력창 초기화
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+
+            // 타이핑 인디케이터 표시
+            showTypingIndicator();
+
+            // 봇 응답 시뮬레이션 (임시)
+            setTimeout(() => {
+                const botResponse = generateMockBotResponse(text);
+                addMessageToUI(botResponse, 'bot');
+                hideTypingIndicator();
+                
+                // 답변 생성 버튼 추가
+                addGenerateButton(text, botResponse);
+            }, 1500);
+        }
+
+        // 봇 응답 생성 (모의)
+        async function generateBotResponse(userMessage) {
+            const responses = {
+                '도로': '도로 보수 요청 민원에 대한 처리 절차를 안내해드리겠습니다.\n\n1. 민원 내용 확인 및 현장 조사\n2. 도로관리과와 협의\n3. 보수 일정 수립 (일반적으로 2주 이내)\n4. 민원인에게 처리 일정 안내\n5. 보수 완료 후 결과 통보\n\n관련 법령: 도로법 제2조, 제19조, 민원처리에 관한 법률 제8조',
+                '개인정보': '개인정보 관련 민원 처리 절차를 안내해드리겠습니다.\n\n1. 민원 내용 검토 및 개인정보보호법 적용 검토\n2. 개인정보보호위원회 협의 (필요시)\n3. 관련 부서 조사 및 개선 조치\n4. 민원인에게 처리 결과 통보\n5. 재발 방지 대책 수립\n\n관련 법령: 개인정보보호법 제1조, 제15조, 제17조, 제71조',
+                '예산': '예산 소요 민원 처리 절차를 안내해드리겠습니다.\n\n1. 예산 소요 금액 산정\n2. 예산 확보 방안 검토\n3. 관련 부서 협의 및 예산 배정 신청\n4. 상급자 보고 및 승인\n5. 처리 일정 조정 및 민원인 안내\n\n관련 법령: 지방재정법 제2조, 제31조, 민원처리에 관한 법률 제9조'
+            };
+
+            const matchedKey = Object.keys(responses).find(key => userMessage.includes(key));
+            
+            if (matchedKey) {
+                return responses[matchedKey];
+            }
+
+            return '민원 내용을 구체적으로 알려주시면 더 정확한 답변을 드릴 수 있습니다.\n\n일반적인 민원 처리 절차:\n1. 민원 내용 검토 및 분류\n2. 관련 부서 협의\n3. 처리 방안 수립\n4. 민원인 답변\n5. 처리 완료 및 기록\n\n관련 법령: 민원처리에 관한 법률 제1조, 제8조, 제9조';
+        }
+
+        // 세션 삭제
+        async function deleteSession(sessionId, event) {
+            event.stopPropagation();
+            
+            if (!confirm('이 대화를 삭제하시겠습니까?')) return;
+
+            try {
+                await ChatService.deleteSession(sessionId);
+                chatSessions = chatSessions.filter(s => s.id !== sessionId);
+                renderChatList();
+                
+                if (currentSessionId === sessionId) {
+                    currentSessionId = null;
+                    messages = [];
+                    messagesContainer.innerHTML = '';
+                    showEmptyState();
+                }
+            } catch (error) {
+                console.error('세션 삭제 실패:', error);
+                alert('대화를 삭제할 수 없습니다.');
+            }
+        }
+
+        // 타이핑 인디케이터 표시
+        function showTypingIndicator() {
+            const typingEl = document.createElement('div');
+            typingEl.className = 'message bot';
+            typingEl.id = 'typing-indicator';
+            typingEl.innerHTML = `
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(typingEl);
+            scrollToBottom();
+        }
+
+        // 타이핑 인디케이터 숨기기
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
+
+        // 빈 상태 표시/숨기기
+        function showEmptyState() {
+            emptyState.style.display = 'flex';
+        }
+
+        function hideEmptyState() {
+            emptyState.style.display = 'none';
+        }
+
+        // 스크롤을 맨 아래로
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 빠른 메시지 설정
+        function setQuickMessage(text) {
+            messageInput.value = text;
+            messageInput.focus();
+        }
+
+        // 시간 포맷팅
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleTimeString('ko-KR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // 날짜 포맷팅
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffTime = Math.abs(now.getTime() - date.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 1) {
+                return '어제';
+            } else if (diffDays < 7) {
+                return `${diffDays}일 전`;
+            } else {
+                return date.toLocaleDateString('ko-KR');
+            }
+        }
+
+        // 이벤트 리스너
+        sendBtn.addEventListener('click', sendMessage);
+
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // 텍스트 영역 자동 높이 조정
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // 초기화
+        async function init() {
+            await loadSessions();
+            
+            // 첫 번째 세션이 있으면 자동 선택
+            if (chatSessions.length > 0) {
+                selectSession(chatSessions[0].id);
+            }
+        }
+
+        // 채팅 화면에 메시지 추가 (임시 UI용)
+        function addMessageToUI(text, sender) {
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${sender}`;
+            messageEl.innerHTML = `
+                <div class="message-content">
+                    <div class="message-text">${text.replace(/\n/g, '<br>')}</div>
+                    <div class="message-time">${new Date().toLocaleTimeString('ko-KR', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })}</div>
+                </div>
+            `;
+            messagesContainer.appendChild(messageEl);
+            scrollToBottom();
+        }
+
+        // 결과 패널 표시
+        function showResultPanel() {
+            const chatSection = document.getElementById('chatSection');
+            const resultPanel = document.getElementById('resultPanel');
+            
+            chatSection.classList.add('collapsed');
+            resultPanel.classList.add('show');
+        }
+
+        // 결과 패널 숨기기
+        function hideResultPanel() {
+            const chatSection = document.getElementById('chatSection');
+            const resultPanel = document.getElementById('resultPanel');
+            
+            chatSection.classList.remove('collapsed');
+            resultPanel.classList.remove('show');
+        }
+
+        // 모의 봇 응답 생성 (임시)
+        function generateMockBotResponse(userMessage) {
+            const responses = {
+                '도로': '도로 보수 요청 민원에 대한 처리 절차를 안내해드리겠습니다.\n\n1. 민원 내용 확인 및 현장 조사\n2. 도로관리과와 협의\n3. 보수 일정 수립 (일반적으로 2주 이내)\n4. 민원인에게 처리 일정 안내\n5. 보수 완료 후 결과 통보',
+                '개인정보': '개인정보 관련 민원 처리 절차를 안내해드리겠습니다.\n\n1. 민원 내용 검토 및 개인정보보호법 적용 검토\n2. 개인정보보호위원회 협의 (필요시)\n3. 관련 부서 조사 및 개선 조치\n4. 민원인에게 처리 결과 통보\n5. 재발 방지 대책 수립',
+                '예산': '예산 소요 민원 처리 절차를 안내해드리겠습니다.\n\n1. 예산 소요 금액 산정\n2. 예산 확보 방안 검토\n3. 관련 부서 협의 및 예산 배정 신청\n4. 상급자 보고 및 승인\n5. 처리 일정 조정 및 민원인 안내'
+            };
+
+            const matchedKey = Object.keys(responses).find(key => userMessage.includes(key));
+            
+            if (matchedKey) {
+                return responses[matchedKey];
+            }
+
+            return '민원 내용을 구체적으로 알려주시면 더 정확한 답변을 드릴 수 있습니다.\n\n일반적인 민원 처리 절차:\n1. 민원 내용 검토 및 분류\n2. 관련 부서 협의\n3. 처리 방안 수립\n4. 민원인 답변\n5. 처리 완료 및 기록';
+        }
+
+        // 답변 생성 버튼 추가
+        function addGenerateButton(userMessage, botResponse) {
+            const generateBtn = document.createElement('button');
+            generateBtn.className = 'generate-btn';
+            generateBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                답변 생성
+            `;
+            generateBtn.onclick = () => {
+                showResultPanel();
+                updateResultPanel(userMessage, botResponse);
+                generateBtn.remove(); // 버튼 제거
+            };
+            
+            // 메시지 컨테이너에 버튼 추가
+            messagesContainer.appendChild(generateBtn);
+            scrollToBottom();
+        }
+
+        // 결과 패널 내용 업데이트
+        function updateResultPanel(userMessage, botResponse) {
+            const answerText = document.getElementById('answerText');
+            const legalList = document.getElementById('legalList');
+            
+            // 답변 내용 업데이트
+            answerText.textContent = botResponse;
+            
+            // 관련 법령 업데이트 (임시)
+            const legalItems = getLegalItems(userMessage);
+            legalList.innerHTML = legalItems.map(item => `<div>${item}</div>`).join('');
+        }
+
+        // 관련 법령 항목 가져오기 (임시)
+        function getLegalItems(userMessage) {
+            const legalByCategory = {
+                '도로': [
+                    '도로법 제2조 (도로의 정의)',
+                    '도로법 제19조 (도로의 관리)',
+                    '민원처리에 관한 법률 제8조 (처리기간)'
+                ],
+                '개인정보': [
+                    '개인정보보호법 제1조 (목적)',
+                    '개인정보보호법 제15조 (개인정보의 수집·이용)',
+                    '개인정보보호법 제17조 (개인정보의 제3자 제공)',
+                    '개인정보보호법 제71조 (민원처리)'
+                ],
+                '예산': [
+                    '지방재정법 제2조 (지방자치단체의 재정운영)',
+                    '지방재정법 제31조 (예산의 편성)',
+                    '민원처리에 관한 법률 제9조 (처리방법)'
+                ]
+            };
+
+            const matchedKey = Object.keys(legalByCategory).find(key => userMessage.includes(key));
+            
+            if (matchedKey) {
+                return legalByCategory[matchedKey];
+            }
+
+            return [
+                '민원처리에 관한 법률 제1조 (목적)',
+                '민원처리에 관한 법률 제8조 (처리기간)',
+                '민원처리에 관한 법률 제9조 (처리방법)'
+            ];
+        }
+
+        // 편집 가능하게 만들기 (수정 버튼으로만 가능)
+        function makeEditable(element) {
+            element.contentEditable = true;
+            element.classList.add('editing');
+            element.focus();
+            
+            // 편집 완료 시 처리
+            element.onblur = () => {
+                element.contentEditable = false;
+                element.classList.remove('editing');
+            };
+            
+            // Enter 키 누르면 편집 완료
+            element.onkeydown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    element.blur();
+                }
+            };
+        }
+
+        // 액션 버튼 함수들
+        function editAnswer() {
+            const answerText = document.getElementById('answerText');
+            makeEditable(answerText);
+        }
+
+        function copyAnswer() {
+            const answerText = document.getElementById('answerText');
+            const textToCopy = answerText.textContent || answerText.innerText;
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                // 복사 성공 피드백
+                const originalText = answerText.innerHTML;
+                answerText.style.background = '#10b981';
+                answerText.style.color = 'white';
+                setTimeout(() => {
+                    answerText.style.background = '';
+                    answerText.style.color = '';
+                }, 500);
+                
+                console.log('답변이 클립보드에 복사되었습니다.');
+            }).catch(err => {
+                console.error('복사 실패:', err);
+                alert('복사에 실패했습니다.');
+            });
+        }
+
+        function editLegal() {
+            const legalList = document.getElementById('legalList');
+            makeEditable(legalList);
+        }
+
+        function copyLegal() {
+            const legalList = document.getElementById('legalList');
+            const textToCopy = legalList.textContent || legalList.innerText;
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                // 복사 성공 피드백
+                const originalBg = legalList.style.background;
+                const originalColor = legalList.style.color;
+                legalList.style.background = '#10b981';
+                legalList.style.color = 'white';
+                setTimeout(() => {
+                    legalList.style.background = originalBg;
+                    legalList.style.color = originalColor;
+                }, 500);
+                
+                console.log('관련 법령이 클립보드에 복사되었습니다.');
+            }).catch(err => {
+                console.error('복사 실패:', err);
+                alert('복사에 실패했습니다.');
+            });
+        }
+
+        // 법령 데이터 (예시)
+        const legalData = {
+            categories: [
+                {
+                    id: 'civil',
+                    title: '민원처리',
+                    desc: '민원 접수, 처리, 답변 관련 법령'
+                },
+                {
+                    id: 'personal',
+                    title: '개인정보',
+                    desc: '개인정보 수집, 이용, 보호 관련 법령'
+                },
+                {
+                    id: 'road',
+                    title: '도로관리',
+                    desc: '도로 건설, 보수, 관리 관련 법령'
+                },
+                {
+                    id: 'budget',
+                    title: '예산관리',
+                    desc: '예산 편성, 집행, 관리 관련 법령'
+                }
+            ],
+            laws: {
+                civil: [
+                    {
+                        id: 'civil_law1',
+                        title: '민원처리에 관한 법률',
+                        desc: '민원의 접수, 처리절차, 기간 등을 규정'
+                    },
+                    {
+                        id: 'civil_law2',
+                        title: '행정절차법',
+                        desc: '행정청의 처분절차와 민원인의 권리 규정'
+                    }
+                ],
+                personal: [
+                    {
+                        id: 'personal_law1',
+                        title: '개인정보보호법',
+                        desc: '개인정보의 수집, 이용, 보호에 관한 사항 규정'
+                    },
+                    {
+                        id: 'personal_law2',
+                        title: '정보통신망법',
+                        desc: '정보통신망을 통한 개인정보 보호 규정'
+                    }
+                ],
+                road: [
+                    {
+                        id: 'road_law1',
+                        title: '도로법',
+                        desc: '도로의 건설, 관리, 보전에 관한 사항 규정'
+                    },
+                    {
+                        id: 'road_law2',
+                        title: '도로교통법',
+                        desc: '도로에서의 교통 안전과 질서 규정'
+                    }
+                ],
+                budget: [
+                    {
+                        id: 'budget_law1',
+                        title: '지방재정법',
+                        desc: '지방자치단체의 재정 운영에 관한 사항 규정'
+                    },
+                    {
+                        id: 'budget_law2',
+                        title: '국가재정법',
+                        desc: '국가의 예산 및 기금 운용에 관한 사항 규정'
+                    }
+                ]
+            },
+            articles: {
+                civil_law1: [
+                    {
+                        id: 'civil_law1_art1',
+                        number: '제1조',
+                        title: '목적',
+                        content: '이 법은 민원사무의 처리절차와 방법을 규정하여 민원처리의 적정성과 신속성을 확보하고 민원인의 권익을 보호함을 목적으로 한다.'
+                    },
+                    {
+                        id: 'civil_law1_art8',
+                        number: '제8조',
+                        title: '처리기간',
+                        content: '행정기관의 장은 민원을 접수한 날부터 7일 이내에 처리하여야 한다. 다만, 부득이한 사유로 처리기간 내에 처리할 수 없는 경우에는 그 사유와 처리예정일을 민원인에게 통지하여야 한다.'
+                    },
+                    {
+                        id: 'civil_law1_art9',
+                        number: '제9조',
+                        title: '처리방법',
+                        content: '민원담당자는 민원을 접수한 때에는 민원인에게 접수증을 교부하고, 처리 완료 시에는 그 결과를 지체 없이 민원인에게 통지하여야 한다.'
+                    }
+                ],
+                personal_law1: [
+                    {
+                        id: 'personal_law1_art1',
+                        number: '제1조',
+                        title: '목적',
+                        content: '이 법은 개인정보의 처리 및 보호에 관한 사항을 규정하여 개인의 자유와 권리를 보호하고, 나아가 개인의 존엄과 가치를 구현하기 위함을 목적으로 한다.'
+                    },
+                    {
+                        id: 'personal_law1_art15',
+                        number: '제15조',
+                        title: '개인정보의 수집·이용',
+                        content: '개인정보처리자는 정보주체의 동의를 받아 개인정보를 수집할 수 있다. 다만, 법률에 특별한 규정이 있거나 법령상 의무를 준수하기 위하여 불가피한 경우에는 정보주체의 동의 없이도 개인정보를 수집할 수 있다.'
+                    },
+                    {
+                        id: 'personal_law1_art71',
+                        number: '제71조',
+                        title: '민원처리',
+                        content: '개인정보처리자는 개인정보 처리에 관한 민원을 자율적으로 처리하기 위하여 필요한 절차를 마련하고 민원처리 담당자를 지정하여야 한다.'
+                    }
+                ],
+                road_law1: [
+                    {
+                        id: 'road_law1_art2',
+                        number: '제2조',
+                        title: '도로의 정의',
+                        content: '이 법에서 "도로"란 일반의 교통에 사용되는 도로로서 다음과 같이 구분한다. 1. 고속국도 2. 일반국도 3. 특별시도·광역시도 4. 지방도 5. 시도 6. 군도 7. 구도'
+                    },
+                    {
+                        id: 'road_law1_art19',
+                        number: '제19조',
+                        title: '도로의 관리',
+                        content: '도로관리청은 도로를 양호한 상태로 유지하고 안전하고 원활한 교통을 확보하기 위하여 도로의 신설·개량·유지·보수 및 그 밖의 관리를 하여야 한다.'
+                    }
+                ],
+                budget_law1: [
+                    {
+                        id: 'budget_law1_art2',
+                        number: '제2조',
+                        title: '지방자치단체의 재정운영',
+                        content: '지방자치단체는 그 재정을 수입과 지출의 균형을 유지하며 건전하게 운영하여야 하고, 국가의 정책목표에 부합하도록 노력하여야 한다.'
+                    },
+                    {
+                        id: 'budget_law1_art31',
+                        number: '제31조',
+                        title: '예산의 편성',
+                        content: '지방자치단체의 장은 대통령령으로 정하는 바에 따라 매년도 예산안을 편성하여 회계연도 개시 90일 전까지 지방의회에 제출하여야 한다.'
+                    }
+                ]
+            }
+        };
+
+        // 법령 선택 패널 열기
+        function openLegalSelector() {
+            currentLegalStep = 'category';
+            // 기존 선택사항 유지하지 않고 초기화
+            selectedCategories = [];
+            selectedLaws = {};
+            selectedArticles = {};
+            showCategorySelection();
+            document.getElementById('legalSelectorOverlay').classList.add('show');
+            document.getElementById('legalSelectorPanel').classList.add('show');
+        }
+
+        // 법령 선택 패널 닫기
+        function closeLegalSelector() {
+            document.getElementById('legalSelectorOverlay').classList.remove('show');
+            document.getElementById('legalSelectorPanel').classList.remove('show');
+        }
+
+        // 지침(카테고리) 선택 화면 표시
+        function showCategorySelection() {
+            const title = document.getElementById('legalSelectorTitle');
+            const content = document.getElementById('legalSelectorContent');
+            const footer = document.getElementById('legalSelectorFooter');
+
+            title.textContent = '지침 선택 (다중 선택 가능)';
+            
+            content.innerHTML = `
+                <div style="margin-bottom: 15px; padding: 10px; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
+                    💡 여러 지침을 동시에 선택할 수 있습니다. 선택된 지침은 파란색으로 표시됩니다.
+                </div>
+                <div class="legal-category-grid">
+                    ${legalData.categories.map(category => {
+                        const isSelected = selectedCategories.includes(category.id);
+                        return `
+                            <div class="legal-category-item ${isSelected ? 'selected' : ''}" onclick="toggleCategory('${category.id}')">
+                                <div class="legal-category-title">${category.title}</div>
+                                <div class="legal-category-desc">${category.desc}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
+            footer.innerHTML = `
+                <button class="footer-btn primary" onclick="proceedToLawSelection()" ${selectedCategories.length === 0 ? 'disabled' : ''}>다음 (${selectedCategories.length}개 선택됨)</button>
+                <button class="footer-btn secondary" onclick="closeLegalSelector()">닫기</button>
+            `;
+        }
+
+        // 카테고리 토글 (다중 선택)
+        function toggleCategory(categoryId) {
+            const index = selectedCategories.indexOf(categoryId);
+            if (index > -1) {
+                selectedCategories.splice(index, 1);
+                // 해당 카테고리의 선택된 법령들도 제거
+                delete selectedLaws[categoryId];
+                // 해당 카테고리에 속한 법령들의 선택된 조항들도 제거
+                const categoryLaws = legalData.laws[categoryId] || [];
+                categoryLaws.forEach(law => {
+                    delete selectedArticles[law.id];
+                });
+            } else {
+                selectedCategories.push(categoryId);
+                selectedLaws[categoryId] = [];
+            }
+            
+            // UI 업데이트
+            updateCategoryDisplay();
+            updateCategoryFooter();
+        }
+
+        // 카테고리 표시 업데이트
+        function updateCategoryDisplay() {
+            const categoryItems = document.querySelectorAll('.legal-category-item');
+            categoryItems.forEach((item, index) => {
+                const categoryId = legalData.categories[index].id;
+                if (selectedCategories.includes(categoryId)) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        // 카테고리 선택 푸터 업데이트
+        function updateCategoryFooter() {
+            const footer = document.getElementById('legalSelectorFooter');
+            footer.innerHTML = `
+                <button class="footer-btn primary" onclick="proceedToLawSelection()" ${selectedCategories.length === 0 ? 'disabled' : ''}>다음 (${selectedCategories.length}개 선택됨)</button>
+                <button class="footer-btn secondary" onclick="closeLegalSelector()">닫기</button>
+            `;
+        }
+
+        // 법령 선택 단계로 진행
+        function proceedToLawSelection() {
+            if (selectedCategories.length === 0) {
+                alert('선택된 지침이 없습니다.');
+                return;
+            }
+            currentLegalStep = 'laws';
+            showLawSelection();
+        }
+
+        // 법령 선택 화면 표시
+        function showLawSelection() {
+            const title = document.getElementById('legalSelectorTitle');
+            const content = document.getElementById('legalSelectorContent');
+            const footer = document.getElementById('legalSelectorFooter');
+
+            title.textContent = '법령 선택 (다중 선택 가능)';
+            
+            let allLaws = [];
+            selectedCategories.forEach(categoryId => {
+                const categoryLaws = legalData.laws[categoryId] || [];
+                const categoryTitle = legalData.categories.find(c => c.id === categoryId)?.title || '';
+                categoryLaws.forEach(law => {
+                    allLaws.push({
+                        ...law,
+                        categoryId: categoryId,
+                        categoryTitle: categoryTitle
+                    });
+                });
+            });
+
+            content.innerHTML = `
+                <div style="margin-bottom: 15px; padding: 10px; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
+                    💡 여러 법령을 동시에 선택할 수 있습니다. 선택된 법령은 파란색으로 표시됩니다.
+                </div>
+                <div>
+                    ${allLaws.map(law => {
+                        const isSelected = selectedLaws[law.categoryId] && selectedLaws[law.categoryId].includes(law.id);
+                        return `
+                            <div class="legal-list-item ${isSelected ? 'selected' : ''}" onclick="toggleLaw('${law.categoryId}', '${law.id}')">
+                                <div class="legal-category-tag" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">${law.categoryTitle}</div>
+                                <div class="legal-item-title">${law.title}</div>
+                                <div class="legal-item-desc">${law.desc}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
+            const totalSelectedLaws = Object.values(selectedLaws).reduce((total, laws) => total + laws.length, 0);
+            footer.innerHTML = `
+                <button class="footer-btn secondary" onclick="showCategorySelection()">뒤로가기</button>
+                <button class="footer-btn primary" onclick="proceedToArticleSelection()" ${totalSelectedLaws === 0 ? 'disabled' : ''}>다음 (${totalSelectedLaws}개 선택됨)</button>
+                <button class="footer-btn secondary" onclick="closeLegalSelector()">닫기</button>
+            `;
+        }
+
+        // 법령 토글 (다중 선택)
+        function toggleLaw(categoryId, lawId) {
+            if (!selectedLaws[categoryId]) {
+                selectedLaws[categoryId] = [];
+            }
+            
+            const index = selectedLaws[categoryId].indexOf(lawId);
+            if (index > -1) {
+                selectedLaws[categoryId].splice(index, 1);
+                // 해당 법령의 선택된 조항들도 제거
+                delete selectedArticles[lawId];
+            } else {
+                selectedLaws[categoryId].push(lawId);
+                selectedArticles[lawId] = [];
+            }
+            
+            // UI 업데이트
+            updateLawDisplay();
+            updateLawFooter();
+        }
+
+        // 법령 표시 업데이트
+        function updateLawDisplay() {
+            const lawItems = document.querySelectorAll('.legal-list-item');
+            lawItems.forEach(item => {
+                const onclickAttr = item.getAttribute('onclick');
+                if (onclickAttr) {
+                    const match = onclickAttr.match(/toggleLaw\('([^']+)',\s*'([^']+)'\)/);
+                    if (match) {
+                        const categoryId = match[1];
+                        const lawId = match[2];
+                        const isSelected = selectedLaws[categoryId] && selectedLaws[categoryId].includes(lawId);
+                        if (isSelected) {
+                            item.classList.add('selected');
+                        } else {
+                            item.classList.remove('selected');
+                        }
+                    }
+                }
+            });
+        }
+
+        // 법령 선택 푸터 업데이트
+        function updateLawFooter() {
+            const footer = document.getElementById('legalSelectorFooter');
+            const totalSelectedLaws = Object.values(selectedLaws).reduce((total, laws) => total + laws.length, 0);
+            footer.innerHTML = `
+                <button class="footer-btn secondary" onclick="showCategorySelection()">뒤로가기</button>
+                <button class="footer-btn primary" onclick="proceedToArticleSelection()" ${totalSelectedLaws === 0 ? 'disabled' : ''}>다음 (${totalSelectedLaws}개 선택됨)</button>
+                <button class="footer-btn secondary" onclick="closeLegalSelector()">닫기</button>
+            `;
+        }
+
+        // 조항 선택 단계로 진행
+        function proceedToArticleSelection() {
+            const totalSelectedLaws = Object.values(selectedLaws).reduce((total, laws) => total + laws.length, 0);
+            if (totalSelectedLaws === 0) {
+                alert('선택된 법령이 없습니다.');
+                return;
+            }
+            currentLegalStep = 'articles';
+            showArticleSelection();
+        }
+
+        // 조항 선택 화면 표시
+        function showArticleSelection() {
+            const title = document.getElementById('legalSelectorTitle');
+            const content = document.getElementById('legalSelectorContent');
+            const footer = document.getElementById('legalSelectorFooter');
+
+            title.textContent = '조항 선택 (다중 선택 가능)';
+            
+            let allArticles = [];
+            Object.keys(selectedLaws).forEach(categoryId => {
+                const categoryLaws = selectedLaws[categoryId];
+                categoryLaws.forEach(lawId => {
+                    const law = legalData.laws[categoryId]?.find(l => l.id === lawId);
+                    const articles = legalData.articles[lawId] || [];
+                    articles.forEach(article => {
+                        allArticles.push({
+                            ...article,
+                            lawId: lawId,
+                            lawTitle: law?.title || '',
+                            categoryId: categoryId
+                        });
+                    });
+                });
+            });
+
+            content.innerHTML = `
+                <div>
+                    <div style="margin-bottom: 15px; padding: 10px; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
+                        💡 여러 조항을 동시에 선택할 수 있습니다. 선택된 조항은 파란색으로 표시됩니다.
+                    </div>
+                    ${allArticles.map(article => {
+                        const isSelected = selectedArticles[article.lawId] && selectedArticles[article.lawId].includes(article.id);
+                        return `
+                            <div class="legal-article-item ${isSelected ? 'selected' : ''}" onclick="toggleArticleNew('${article.lawId}', '${article.id}')">
+                                <div class="legal-category-tag" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">${article.lawTitle}</div>
+                                <div class="legal-article-number">${article.number} (${article.title})</div>
+                                <div class="legal-article-text">${article.content}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
+            const totalSelectedArticles = Object.values(selectedArticles).reduce((total, articles) => total + articles.length, 0);
+            footer.innerHTML = `
+                <button class="footer-btn secondary" onclick="showLawSelection()">뒤로가기</button>
+                <button class="footer-btn primary" onclick="applySelectedArticles()">적용 (${totalSelectedArticles}개 선택됨)</button>
+                <button class="footer-btn secondary" onclick="closeLegalSelector()">닫기</button>
+            `;
+        }
+
+        // 새로운 조항 선택/해제 (법령별 관리)
+        function toggleArticleNew(lawId, articleId) {
+            if (!selectedArticles[lawId]) {
+                selectedArticles[lawId] = [];
+            }
+            
+            const index = selectedArticles[lawId].indexOf(articleId);
+            if (index > -1) {
+                selectedArticles[lawId].splice(index, 1);
+            } else {
+                selectedArticles[lawId].push(articleId);
+            }
+            
+            // UI 업데이트
+            updateArticleDisplay();
+            updateArticleFooter();
+        }
+
+        // 조항 표시 업데이트
+        function updateArticleDisplay() {
+            const articleItems = document.querySelectorAll('.legal-article-item');
+            articleItems.forEach(item => {
+                const onclickAttr = item.getAttribute('onclick');
+                if (onclickAttr) {
+                    const match = onclickAttr.match(/toggleArticleNew\('([^']+)',\s*'([^']+)'\)/);
+                    if (match) {
+                        const lawId = match[1];
+                        const articleId = match[2];
+                        const isSelected = selectedArticles[lawId] && selectedArticles[lawId].includes(articleId);
+                        if (isSelected) {
+                            item.classList.add('selected');
+                        } else {
+                            item.classList.remove('selected');
+                        }
+                    }
+                }
+            });
+        }
+
+        // 조항 선택 푸터 업데이트
+        function updateArticleFooter() {
+            const footer = document.getElementById('legalSelectorFooter');
+            const totalSelectedArticles = Object.values(selectedArticles).reduce((total, articles) => total + articles.length, 0);
+            footer.innerHTML = `
+                <button class="footer-btn secondary" onclick="showLawSelection()">뒤로가기</button>
+                <button class="footer-btn primary" onclick="applySelectedArticles()">적용 (${totalSelectedArticles}개 선택됨)</button>
+                <button class="footer-btn secondary" onclick="closeLegalSelector()">닫기</button>
+            `;
+        }
+
+        // 기존 함수 (하위 호환성)
+        function toggleArticle(articleId) {
+            const articleElement = event.target.closest('.legal-article-item');
+            const index = selectedArticles.indexOf(articleId);
+            
+            if (index > -1) {
+                selectedArticles.splice(index, 1);
+                articleElement.classList.remove('selected');
+            } else {
+                selectedArticles.push(articleId);
+                articleElement.classList.add('selected');
+            }
+            
+            // 실시간으로 선택 개수 업데이트
+            updateApplyButtonText();
+        }
+
+        // 적용 버튼 텍스트 업데이트
+        function updateApplyButtonText() {
+            const applyButton = document.querySelector('.footer-btn.primary');
+            if (applyButton) {
+                applyButton.textContent = `적용 (${selectedArticles.length}개 선택됨)`;
+            }
+        }
+
+        // 선택된 조항들을 관련 법령에 적용
+        function applySelectedArticles() {
+            const totalSelectedArticles = Object.values(selectedArticles).reduce((total, articles) => total + articles.length, 0);
+            if (totalSelectedArticles === 0) {
+                alert('선택된 조항이 없습니다.');
+                return;
+            }
+
+            const legalList = document.getElementById('legalList');
+            const selectedArticleTexts = [];
+
+            // 법령별로 그룹화하여 선택된 조항들 수집
+            Object.keys(selectedArticles).forEach(lawId => {
+                const articleIds = selectedArticles[lawId];
+                if (articleIds.length > 0) {
+                    // 법령 정보 찾기
+                    let lawTitle = '';
+                    Object.keys(legalData.laws).forEach(categoryId => {
+                        const law = legalData.laws[categoryId]?.find(l => l.id === lawId);
+                        if (law) {
+                            lawTitle = law.title;
+                        }
+                    });
+
+                    // 각 조항 추가
+                    articleIds.forEach(articleId => {
+                        const article = legalData.articles[lawId]?.find(a => a.id === articleId);
+                        if (article) {
+                            selectedArticleTexts.push(`[${lawTitle}] ${article.number} ${article.title}: ${article.content}`);
+                        }
+                    });
+                }
+            });
+
+            legalList.innerHTML = selectedArticleTexts.map(text => `<div style="margin-bottom: 10px; padding: 8px; border-left: 3px solid #667eea;">${text}</div>`).join('');
+            closeLegalSelector();
+            
+            // 성공 메시지
+            const legalSection = legalList.closest('.answer-section');
+            const originalBg = legalSection.style.background;
+            legalSection.style.background = '#f0f9ff';
+            setTimeout(() => {
+                legalSection.style.background = originalBg;
+            }, 1000);
+        }
+
+        // 관련 법령 수정 함수 업데이트
+        function editLegal() {
+            openLegalSelector();
+        }
+
+        // 앱 시작
+        init();
+    </script>
+</body>
+</html>
