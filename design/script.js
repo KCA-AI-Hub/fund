@@ -111,36 +111,10 @@ class ComplaintChatbot {
         this.messageInput.value = '';
         this.autoResizeTextarea();
 
-        // 2단계 플로우 처리
-        if (this.awaitingConfirmation) {
-            // 확인 대기 중: 사용자 응답이 확인인지 체크
-            const isConfirmation = this.isConfirmationResponse(message);
-
-            if (isConfirmation) {
-                // 확인됨: 실제 FAQ RAG 답변 생성
-                setTimeout(() => {
-                    this.generateActualAnswer(this.pendingQuestion);
-                }, 500);
-            } else {
-                // 확인되지 않음: 상태 리셋 및 안내
-                this.awaitingConfirmation = false;
-                this.pendingQuestion = null;
-
-                const resetMessage = {
-                    type: 'bot',
-                    content: '알겠습니다. 다시 질문해주시면 도와드리겠습니다.',
-                    timestamp: new Date()
-                };
-                setTimeout(() => {
-                    this.addMessage(resetMessage);
-                }, 500);
-            }
-        } else {
-            // 일반 플로우: 1단계 확인 질문 생성
-            setTimeout(() => {
-                this.confirmQuestion(message);
-            }, 500);
-        }
+        // 확인 단계 없이 바로 답변 생성
+        setTimeout(() => {
+            this.generateActualAnswer(message);
+        }, 500);
     }
 
     // 사용자 응답이 확인(긍정)인지 판단

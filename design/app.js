@@ -39,37 +39,39 @@ class ComplaintChatbot {
         this.selectedClauses = []; // 선택된 항들
         this.currentSelectedGuideline = null; // 현재 선택된 지침
         this.currentSelectedArticle = null; // 현재 선택된 조항
+        this.lastBotResponse = null; // API 응답 저장
         
         this.initializeEventListeners();
         this.createNewChat();
     }
     
     initializeEventListeners() {
-        this.sendButton.addEventListener('click', () => this.sendMessage());
-        this.messageInput.addEventListener('keypress', (e) => {
+        // onclick 속성으로 이벤트 중복 방지 (덮어쓰기 방식)
+        this.sendButton.onclick = () => this.sendMessage();
+        this.messageInput.onkeypress = (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.sendMessage();
             }
-        });
-        this.messageInput.addEventListener('input', () => this.autoResizeTextarea());
-        
-        this.newChatBtn.addEventListener('click', () => this.createNewChat());
-        
+        };
+        this.messageInput.oninput = () => this.autoResizeTextarea();
+
+        this.newChatBtn.onclick = () => this.createNewChat();
+
         document.querySelectorAll('.example-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.onclick = () => {
                 const example = btn.getAttribute('data-example');
                 this.messageInput.value = example;
                 this.messageInput.focus();
-            });
+            };
         });
-        
-        // 액션 버튼 이벤트 리스너
-        this.editAnswerBtn.addEventListener('click', () => this.toggleEditMode('answer'));
-        this.copyAnswerBtn.addEventListener('click', () => this.copyContent('answer'));
-        this.editLawBtn.addEventListener('click', () => this.showLawEditPanel());
-        this.copyLawBtn.addEventListener('click', () => this.copyContent('law'));
-        
+
+        // 액션 버튼 이벤트 (onclick으로 중복 방지)
+        this.editAnswerBtn.onclick = () => this.toggleEditMode('answer');
+        this.copyAnswerBtn.onclick = () => this.copyContent('answer');
+        this.editLawBtn.onclick = () => this.showLawEditPanel();
+        this.copyLawBtn.onclick = () => this.copyContent('law');
+
         // 법령 편집 패널 이벤트 리스너
         this.initializeLawEditEventListeners();
     }
@@ -229,11 +231,56 @@ class ComplaintChatbot {
         }
     }
     
-    showPanels() {
+    async showPanels() {
         document.body.classList.add('has-panels');
-        this.generateAnswer();
-        this.updateLawContent();
-        
+
+        // 버튼 텍스트 변경
+        if (this.generateAnswerBtn) {
+            this.generateAnswerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 생성중...';
+            this.generateAnswerBtn.style.background = '#8e8ea0';
+        }
+
+        // 마지막 사용자 메시지 가져오기
+        const lastUserMessage = this.messages.filter(m => m.type === 'user').pop();
+        const userQuestion = lastUserMessage ? lastUserMessage.content : '';
+
+        try {
+            // 실제 API 호출
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: userQuestion,
+                    session_id: this.currentSessionId
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // API 응답 저장
+                this.lastBotResponse = data;
+
+                // 답변추천 업데이트
+                if (data.suggested_answer) {
+                    this.answerContent.innerHTML = data.suggested_answer;
+                } else {
+                    this.generateAnswer();
+                }
+
+                // 관련법령 업데이트
+                this.updateLawContent();
+            } else {
+                console.error('API Error:', data.error);
+                this.generateAnswer();
+                this.updateLawContent();
+            }
+        } catch (error) {
+            console.error('Fetch Error:', error);
+            this.generateAnswer();
+            this.updateLawContent();
+        }
+
         // 버튼 텍스트 변경
         if (this.generateAnswerBtn) {
             this.generateAnswerBtn.innerHTML = '<i class="fas fa-times"></i> 답변닫기';
@@ -420,42 +467,41 @@ class ComplaintChatbot {
     }
     
     updateLawContent() {
-        const laws = [
-            {
-                id: 'default-1',
-                title: '민원사무처리에 관한 법률',
-                content: '제1조 (목적) 이 법은 민원사무의 처리에 관한 기본사항을 정함으로써 민원사무의 신속하고 공정한 처리와 국민의 권익보호를 도모함을 목적으로 한다.',
-                articles: ['제1조', '제2조', '제3조']
-            },
-            {
-                id: 'default-2',
-                title: '행정절차법',
-                content: '제1조 (목적) 이 법은 행정청의 처리가 국민의 권리와 의무에 직접적인 영향을 미치는 행정절차에 대하여 공통적으로 적용될 사항을 규정함으로써 행정의 공정성과 투명성을 확보하고 국민의 권익을 보호함을 목적으로 한다.',
-                articles: ['제1조', '제2조', '제3조']
-            },
-            {
-                id: 'default-3',
-                title: '정보공개법',
-                content: '제1조 (목적) 이 법은 공공기관이 보유·관리하는 정보를 국민의 알권리 보장과 국정에 대한 국민의 참여와 국정에 대한 국민의 감시를 위하여 국민에게 공개하도록 함을 목적으로 한다.',
-                articles: ['제1조', '제2조', '제3조']
-            }
-        ];
-        
-        this.lawContent.innerHTML = laws.map(law => `
-            <div class="law-item" data-clause-id="${law.id}">
-                <button class="law-item-remove" onclick="chatbot.removeLawItem('${law.id}')" title="이 항목 삭제">
-                    <i class="fas fa-times"></i>
-                </button>
-                <div class="law-source">
-                    <span class="law-guideline">📋 기본법령</span>
+        // [핵심] 기존 내용 강제 초기화 (무조건 싹 지우고 시작)
+        this.lawContent.innerHTML = '';
+
+        // API 응답에서 관련 법령 가져오기
+        if (this.lastBotResponse && this.lastBotResponse.related_laws &&
+            this.lastBotResponse.related_laws.length > 0) {
+            const laws = this.lastBotResponse.related_laws;
+
+            this.lawContent.innerHTML = laws.map((law, index) => `
+                <div class="law-item" data-clause-id="law-${index}">
+                    <button class="law-item-remove" onclick="chatbot.removeLawItem('law-${index}')" title="이 항목 삭제">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="law-header">
+                        <span class="law-sheet-name">${law.sheet_name || 'SQLite DB'}</span>
+                    </div>
+                    <div class="law-article-info">
+                        <span class="law-article-num">${law.article_num || ''}</span>
+                        <span class="law-article-title">${law.title || ''}</span>
+                    </div>
+                    <div class="law-content-text">
+                        <p>${law.content || ''}</p>
+                    </div>
+                    ${law.matched_keyword ? `<div class="law-footer"><span class="law-keyword-tag">키워드: ${law.matched_keyword}</span></div>` : ''}
                 </div>
-                <h4>${law.title}</h4>
-                <p>${law.content}</p>
-                <div class="law-articles">
-                    ${law.articles.map(article => `<span class="article-tag">${article}</span>`).join('')}
+            `).join('');
+        } else {
+            // 관련 법령이 없는 경우
+            this.lawContent.innerHTML = `
+                <div class="law-item empty">
+                    <p>관련 법령을 찾지 못했습니다.</p>
+                    <p>아래 "수정" 버튼을 눌러 직접 법령을 추가할 수 있습니다.</p>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }
     }
     
     saveChatSession() {
@@ -478,19 +524,19 @@ class ComplaintChatbot {
         this.chatHistory.appendChild(chatItem);
     }
     
-    // 법령 편집 패널 이벤트 리스너 초기화
+    // 법령 편집 패널 이벤트 리스너 초기화 (onclick으로 중복 방지)
     initializeLawEditEventListeners() {
-        // 닫기 버튼들
-        document.getElementById('closeFromGuideline').addEventListener('click', () => this.hideLawEditPanel());
-        document.getElementById('closeFromArticle').addEventListener('click', () => this.hideLawEditPanel());
-        document.getElementById('closeFromClause').addEventListener('click', () => this.hideLawEditPanel());
-        
+        // 닫기 버튼들 (onclick으로 덮어쓰기)
+        document.getElementById('closeFromGuideline').onclick = () => this.hideLawEditPanel();
+        document.getElementById('closeFromArticle').onclick = () => this.hideLawEditPanel();
+        document.getElementById('closeFromClause').onclick = () => this.hideLawEditPanel();
+
         // 뒤로가기 버튼들
-        document.getElementById('backToGuideline').addEventListener('click', () => this.navigateLawPanel(1));
-        document.getElementById('backToArticle').addEventListener('click', () => this.navigateLawPanel(2));
-        
+        document.getElementById('backToGuideline').onclick = () => this.navigateLawPanel(1);
+        document.getElementById('backToArticle').onclick = () => this.navigateLawPanel(2);
+
         // 선택된 항 적용 버튼
-        document.getElementById('applySelected').addEventListener('click', () => this.applySelectedClauses());
+        document.getElementById('applySelected').onclick = () => this.applySelectedClauses();
     }
     
     // 법령 편집 패널 표시
@@ -532,24 +578,17 @@ class ComplaintChatbot {
         }
     }
     
-    // 지침 데이터 로드 (더미 데이터)
+    // 지침 데이터 로드 (고정 데이터 사용)
     loadGuidelineData() {
-        // TODO: DB에서 지침 데이터 가져오기
-        const guidelines = [
-            { id: 'aa', name: 'AA지침', description: '민원처리 기본 지침' },
-            { id: 'bb', name: 'BB지침', description: '행정절차 관련 지침' },
-            { id: 'cc', name: 'CC지침', description: '정보공개 처리 지침' },
-            { id: 'dd', name: 'DD지침', description: '민원인 권리보호 지침' },
-            { id: 'ee', name: 'EE지침', description: '전자민원 처리 지침' }
-        ];
-        
-        this.renderGuidelineList(guidelines);
+        // LAW_DATA.guidelines 사용 (law_data.js에서 로드)
+        this.renderGuidelineList(LAW_DATA.guidelines);
     }
     
-    // 지침 목록 렌더링
+    // 지침 목록 렌더링 (싹 지우고 다시 그리기)
     renderGuidelineList(guidelines) {
+        // [핵심] 기존 내용 강제 초기화
         this.guidelineList.innerHTML = '';
-        
+
         guidelines.forEach(guideline => {
             const button = document.createElement('button');
             button.className = 'guideline-btn';
@@ -557,37 +596,32 @@ class ComplaintChatbot {
                 <span class="guideline-name">${guideline.name}</span>
                 <span class="guideline-desc">${guideline.description}</span>
             `;
-            button.addEventListener('click', () => this.selectGuideline(guideline));
+            // onclick으로 이벤트 중복 방지
+            button.onclick = () => this.selectGuideline(guideline);
             this.guidelineList.appendChild(button);
         });
     }
     
-    // 지침 선택
+    // 지침 선택 (⭐ Sheet 이름 전달)
     selectGuideline(guideline) {
         this.selectedGuidelineTitle.textContent = guideline.name;
         this.currentSelectedGuideline = guideline; // 현재 선택된 지침 저장
-        this.loadArticleData(guideline.id);
+        this.loadArticleData(guideline.id);  // ⭐ Sheet 이름 전달
         this.navigateLawPanel(2);
     }
     
-    // 조항 데이터 로드 (더미 데이터)
-    loadArticleData(guidelineId) {
-        // TODO: DB에서 선택된 지침의 조항 데이터 가져오기
-        const articles = [
-            { id: '1', name: '1조(목적)', description: '이 지침의 목적을 규정' },
-            { id: '2', name: '2조(점검방법)', description: '민원처리 점검방법을 규정' },
-            { id: '3', name: '3조(처리기한)', description: '민원처리 기한을 규정' },
-            { id: '4', name: '4조(담당자)', description: '민원처리 담당자를 규정' },
-            { id: '5', name: '5조(이의신청)', description: '민원처리 이의신청 절차를 규정' }
-        ];
-        
+    // 조항 데이터 로드 (고정 데이터 사용)
+    loadArticleData(sheetName) {
+        // LAW_DATA.articles 사용 (law_data.js에서 로드)
+        const articles = LAW_DATA.articles[sheetName] || [];
         this.renderArticleList(articles);
     }
     
-    // 조항 목록 렌더링
+    // 조항 목록 렌더링 (싹 지우고 다시 그리기)
     renderArticleList(articles) {
+        // [핵심] 기존 내용 강제 초기화
         this.articleList.innerHTML = '';
-        
+
         articles.forEach(article => {
             const button = document.createElement('button');
             button.className = 'article-btn';
@@ -595,52 +629,43 @@ class ComplaintChatbot {
                 <span class="article-name">${article.name}</span>
                 <span class="article-desc">${article.description}</span>
             `;
-            button.addEventListener('click', () => this.selectArticle(article));
+            // onclick으로 이벤트 중복 방지
+            button.onclick = () => this.selectArticle(article);
             this.articleList.appendChild(button);
         });
     }
     
-    // 조항 선택
+    // 조항 선택 (⭐ Sheet + 조번호 전달)
     selectArticle(article) {
         this.selectedArticleTitle.textContent = article.name;
         this.currentSelectedArticle = article; // 현재 선택된 조항 저장
-        this.loadClauseData(article.id);
+        // ⭐ Sheet 이름 + 조번호 전달
+        this.loadClauseData(this.currentSelectedGuideline.id, article.id);
         this.navigateLawPanel(3);
     }
     
-    // 항 데이터 로드 (더미 데이터)
-    loadClauseData(articleId) {
-        // TODO: DB에서 선택된 조항의 항 데이터 가져오기
-        const clauses = [
-            { 
-                id: '1-1', 
-                title: '1항', 
-                content: '민원사무의 처리에 관한 기본사항을 정함으로써 민원사무의 신속하고 공정한 처리와 국민의 권익보호를 도모함을 목적으로 한다.' 
-            },
-            { 
-                id: '1-2', 
-                title: '2항', 
-                content: '이 법에서 정하지 아니한 사항에 대하여는 다른 법률이 정하는 바에 따른다.' 
-            },
-            { 
-                id: '1-3', 
-                title: '3항', 
-                content: '민원처리기관은 민원인의 권익보호와 편의증진을 위하여 노력하여야 한다.' 
-            },
-            { 
-                id: '1-4', 
-                title: '4항', 
-                content: '민원처리기관은 민원사무를 처리할 때 관련 법령과 기준에 따라 공정하고 투명하게 처리하여야 한다.' 
-            }
-        ];
-        
+    // 항 데이터 로드 (고정 데이터 사용)
+    loadClauseData(sheetName, articleNum) {
+        // LAW_DATA.paragraphs 사용 (law_data.js에서 로드)
+        const paragraphs = LAW_DATA.paragraphs[sheetName]?.[articleNum] || [];
+
+        // 렌더링용 형식으로 변환
+        const clauses = paragraphs.map(para => ({
+            id: para.id,
+            title: para.title,
+            content: para.content,
+            guideline: { name: sheetName },
+            article: { name: articleNum }
+        }));
+
         this.renderClauseList(clauses);
     }
     
-    // 항 목록 렌더링 (복수선택 가능)
+    // 항 목록 렌더링 (싹 지우고 다시 그리기, 복수선택 가능)
     renderClauseList(clauses) {
+        // [핵심] 기존 내용 강제 초기화
         this.clauseList.innerHTML = '';
-        
+
         clauses.forEach(clause => {
             const button = document.createElement('button');
             button.className = 'clause-btn';
@@ -651,7 +676,8 @@ class ComplaintChatbot {
                     <div class="clause-text">${clause.content}</div>
                 </div>
             `;
-            button.addEventListener('click', () => this.toggleClauseSelection(clause, button));
+            // onclick으로 이벤트 중복 방지
+            button.onclick = () => this.toggleClauseSelection(clause, button);
             this.clauseList.appendChild(button);
         });
     }
@@ -688,42 +714,42 @@ class ComplaintChatbot {
         }
     }
     
-    // 선택된 항들을 관련법령에 적용
+    // 선택된 항들을 관련법령에 적용 (싹 지우고 다시 그리기 방식)
     applySelectedClauses() {
         if (this.selectedClauses.length === 0) {
             alert('적용할 항을 선택해주세요.');
             return;
         }
-        
-        // 선택된 항들을 관련법령 패널에 추가 (지침, 조항, 항 정보 모두 포함)
+
+        // 선택된 항들을 관련법령 패널에 표시 (지침, 조항, 항 정보 모두 포함)
         const selectedContent = this.selectedClauses.map(clause => `
             <div class="law-item" data-clause-id="${clause.id}">
                 <button class="law-item-remove" onclick="chatbot.removeLawItem('${clause.id}')" title="이 항목 삭제">
                     <i class="fas fa-times"></i>
                 </button>
                 <div class="law-source">
-                    <span class="law-guideline">📋 ${clause.guideline.name}</span>
-                    <span class="law-article">📄 ${clause.article.name}</span>
+                    <span class="law-guideline">${clause.guideline.name}</span>
+                    <span class="law-article">${clause.article.name}</span>
                 </div>
                 <h4>${clause.title}</h4>
                 <p>${clause.content}</p>
             </div>
         `).join('');
-        
-        // 기존 내용에 추가 (또는 교체)
-        this.lawContent.innerHTML += selectedContent;
-        
-        // TODO: DB에 선택된 항들 저장
-        console.log('선택된 항들이 적용되었습니다:', this.selectedClauses);
-        
+
+        // [핵심] 기존 내용 싹 지우고 새로 그리기 (덮어쓰기)
+        this.lawContent.innerHTML = '';
+        this.lawContent.innerHTML = selectedContent;
+
+        console.log(`[Frontend] ${this.selectedClauses.length}개 항목 렌더링 완료`);
+
         // 패널 닫기
         this.hideLawEditPanel();
-        
+
         // 성공 메시지 표시
-        const detailMessage = this.selectedClauses.map(clause => 
+        const detailMessage = this.selectedClauses.map(clause =>
             `${clause.guideline.name} ${clause.article.name} ${clause.title}`
         ).join(', ');
-        this.showSuccessMessage(`${this.selectedClauses.length}개의 항이 추가되었습니다: ${detailMessage}`);
+        this.showSuccessMessage(`${this.selectedClauses.length}개의 항이 적용되었습니다: ${detailMessage}`);
     }
     
     // 성공 메시지 표시

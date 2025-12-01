@@ -217,6 +217,9 @@ backup/
 # ============================================
 # Project Specific
 # ============================================
+# Codebase documentation
+codebase.txt
+
 # Uploaded files
 static/uploads/
 uploads/

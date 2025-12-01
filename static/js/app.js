@@ -764,13 +764,17 @@ class ComplaintChatbot {
                     <button class="law-item-remove" onclick="chatbot.removeLawItem('rag-${index}')" title="이 항목 삭제">
                         <i class="fas fa-times"></i>
                     </button>
-                    <div class="law-source">
-                        <span class="law-guideline">📋 FAQ RAG</span>
-                        ${law.faq_id ? `<small>FAQ ID: ${law.faq_id}</small>` : ''}
+                    <div class="law-header">
+                        <span class="law-sheet-name">${law.sheet_name || 'SQLite DB'}</span>
                     </div>
-                    <h4>${law.title || 'N/A'}</h4>
-                    <p>${law.content || law.summary || 'N/A'}</p>
-                    ${law.source ? `<p><small>출처: ${law.source}</small></p>` : ''}
+                    <div class="law-article-info">
+                        <span class="law-article-num">${law.article_num || ''}</span>
+                        <span class="law-article-title">${law.title || ''}</span>
+                    </div>
+                    <div class="law-content-text">
+                        <p>${law.content || law.summary || ''}</p>
+                    </div>
+                    ${law.matched_keyword ? `<div class="law-footer"><span class="law-keyword-tag">키워드: ${law.matched_keyword}</span></div>` : ''}
                 </div>
             `).join('');
         } else {

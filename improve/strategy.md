@@ -1,244 +1,338 @@
-# 민원처리 챗봇 실제 구현 전략
+# 민원처리 챗봇 하이브리드 RAG 전략
 
-## 📊 현재 상태 분석
+> **핵심 아키텍처**: Dify RAG (FAQ) + SQLite (법령) + OpenAI GPT (답변 생성)
 
-### 구현 완료 부분
-- **UI/UX 디자인**: ChatGPT 스타일의 완성된 인터페이스
-- **채팅 세션 관리**: JavaScript 클래스 기반 구조
-- **기본 상호작용**: 메시지 송수신, 예시 버튼, 패널 토글
-- **편집 기능**: 답변 및 법령 내용 수정/복사
-- **반응형 디자인**: 모바일/태블릿/데스크톱 대응
+---
 
-### 미구현 부분
-- **백엔드 서버**: Python FastAPI/Flask 서버 미구현
-- **LLM 통합**: OpenAI API 또는 자체 모델 연동 필요
-- **데이터베이스**: 채팅 세션 영구 저장소 부재
-- **실제 법령 데이터**: 더미 데이터만 존재
-- **인증/권한**: 사용자 관리 시스템 부재
+## 📊 시스템 구조
 
-## 🎯 구현 우선순위
+### 데이터 저장 전략
 
-### Phase 1: 백엔드 기반 구축 (1-2주)
-**목표**: 프론트엔드와 통신할 수 있는 기본 서버 구축
+```
+FAQ (102개)          →  Dify 지식베이스 (시맨틱 검색 + Reranking)
+법령 (1,063개)       →  SQLite DB (정확한 SQL 검색)
+답변 생성            →  OpenAI GPT-4o-mini (컨텍스트 기반)
+```
 
-**주요 작업**:
-- FastAPI 서버 설정 및 CORS 구성
-- SQLite 데이터베이스 설계 (채팅 세션, 메시지, 법령 테이블)
-- 정적 파일 서빙 설정 (templates 및 static 폴더)
-- 환경 변수 관리 체계 구축
-- 기본 API 엔드포인트 3개 구현 (메시지 전송, 세션 조회, 법령 조회)
-- 기존 design 폴더 파일들을 templates 구조로 재구성
+### 선택 이유
 
-### Phase 2: LLM 통합 (1주)
-**목표**: AI 기반 민원 답변 생성 기능 구현
+| 데이터 | 저장소 | 이유 |
+|--------|--------|------|
+| **FAQ** | Dify | 자연어 이해 필요 (시맨틱 검색), Reranking으로 정확도 향상 |
+| **법령** | SQLite | policy_anchor로 정확한 키워드 매칭, 파일 크기 제한 없음, 빠른 검색 |
 
-**주요 작업**:
-- OpenAI API 연동 또는 로컬 LLM 설정
-- 민원처리 특화 프롬프트 엔지니어링
-- 컨텍스트 관리 시스템 구축
-- 응답 품질 검증 로직 구현
-- 법령 자동 매칭 알고리즘 개발
+---
 
-### Phase 3: 프론트엔드-백엔드 통합 (1주)
-**목표**: 실제 작동하는 통합 시스템 구축
+## 🔄 답변 생성 플로우
 
-**주요 작업**:
-- 프론트엔드 API 클라이언트 구현
-- 실시간 통신 프로토콜 선택 (REST vs WebSocket)
-- 에러 처리 및 재시도 로직
-- 로딩 상태 및 사용자 피드백 개선
-- 세션 상태 동기화
+```
+사용자 질문
+    ↓
+┌─────────────────────────────────────────────┐
+│ STEP 1: FAQ 검색 (Dify API)                │
+│ - 시맨틱 검색으로 유사 FAQ 찾기              │
+│ - Reranking으로 정확도 향상                 │
+│ - Top 3 FAQ 반환 (score 포함)              │
+└─────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────┐
+│ STEP 2: faq_id 추출                        │
+│ - best_faq (최고 score) 사용                │
+└─────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────┐
+│ STEP 3: policy_anchor 매핑                 │
+│ - faq_topic.xlsx에서 관련 법령 참조 찾기    │
+└─────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────┐
+│ STEP 4: 법령 검색 (SQLite)                 │
+│ - policy_anchor로 법령 키워드 검색          │
+│ - LIKE 패턴 매칭으로 관련 법령 추출         │
+└─────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────┐
+│ STEP 5: OpenAI GPT 답변 생성                │
+│ - Context: FAQ 답변 + 법령 전체 텍스트      │
+│ - GPT-4o-mini로 답변 생성                   │
+└─────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────┐
+│ STEP 6: 응답 반환                           │
+│ - message: GPT 답변                         │
+│ - suggested_answer: HTML 포맷 답변          │
+│ - related_laws: policy_anchor 기반 법령     │
+└─────────────────────────────────────────────┘
+```
 
-### Phase 4: 법령 데이터 구축 (2주)
-**목표**: 실제 사용 가능한 법령 정보 시스템 구축
+---
 
-**주요 작업**:
-- 주요 민원 관련 법령 수집 및 정리
-- 법령 데이터 구조화 (JSON 또는 DB)
-- 법령 검색 및 추천 시스템 구현
-- 법령 업데이트 관리 프로세스 수립
-- 법령-민원 매핑 테이블 구축
+## 🗄️ 데이터베이스 스키마 (SQLite)
 
-### Phase 5: 고도화 기능 (2-3주)
-**목표**: 실무 운영을 위한 추가 기능 구현
+### laws 테이블
 
-**주요 작업**:
-- 사용자 인증 시스템 (JWT 기반)
-- 역할 기반 권한 관리
-- 민원 자동 분류 시스템
-- 통계 및 리포트 기능
-- 파일 업로드 및 문서 처리
-- 성능 최적화 및 캐싱
+```sql
+CREATE TABLE laws (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    law_id TEXT UNIQUE NOT NULL,
+    law_title TEXT NOT NULL,
+    sheet_name TEXT NOT NULL,              -- Sheet 이름 (14개)
+    chapter_num TEXT,
+    chapter_title TEXT,
+    article_num TEXT,                      -- 조번호 (제1조, 제2조...)
+    article_title TEXT,                    -- 조항 제목
+    paragraph_num REAL,                    -- 항번호
+    paragraph_content TEXT,                -- 항 내용
+    clause_num REAL,
+    clause_content TEXT,
+    item_num TEXT,
+    item_content TEXT,
+    full_text TEXT NOT NULL,               -- 전체 텍스트 (검색용)
+    first_effective_date DATE,
+    amendment_date DATE,
+    is_active BOOLEAN DEFAULT 1,
+    tags TEXT
+);
 
-## 🏗️ 아키텍처 설계
+CREATE INDEX idx_sheet_name ON laws(sheet_name);
+CREATE INDEX idx_article_num ON laws(article_num);
+CREATE INDEX idx_tags ON laws(tags);
+CREATE INDEX idx_full_text ON laws(full_text);
+```
 
-### 시스템 구성
-- **프론트엔드**: HTML/CSS/JavaScript (templates 폴더 구조)
-- **백엔드**: Python FastAPI 서버
-- **데이터베이스**: SQLite (개발) → PostgreSQL (운영)
-- **AI 엔진**: OpenAI API 또는 로컬 LLM
-- **캐싱**: Redis (선택사항)
+**데이터 구조**: 14개 Sheet → 조(Article) → 항(Paragraph)
 
-### 데이터 흐름
-1. 사용자 입력 → 프론트엔드
-2. API 요청 → 백엔드 서버
-3. LLM 처리 → AI 응답 생성
-4. 법령 매칭 → 관련 법령 검색
-5. 응답 조합 → 최종 답변 생성
-6. 프론트엔드 표시 → 사용자 확인
+---
 
-## 📁 개선된 프로젝트 구조
+## 📂 파일 구조
 
-체계적인 파일 구조로 MVP 구현:
+```
+test_dify/
+├── data/
+│   ├── law.xlsx                          # 법령 원본 (14 sheets, 1,063개)
+│   ├── faq_topic.xlsx                    # FAQ 원본 (102개) → Dify 업로드
+│   └── chatbot.db                        # SQLite DB (법령만)
+│
+├── app.py                                # Flask 서버 (Dify + SQLite 하이브리드)
+├── database.py                           # SQLite 쿼리 함수 (법령 검색)
+├── convert_law_to_db_sheets.py          # 법령 변환 스크립트
+│
+├── design/                               # 프론트엔드 (ChatGPT 스타일)
+│   ├── index.html
+│   ├── script.js
+│   ├── app.js
+│   └── styles.css
+│
+└── improve/
+    ├── strategy.md                       # 이 문서
+    └── strategy_easy.md                  # 초보자용 가이드
+```
 
-### 루트 디렉토리 파일
-- **main.py**: FastAPI 서버 및 모든 API 엔드포인트
-- **database.py**: 데이터베이스 모델 및 연결 관리
-- **llm_service.py**: LLM 통합 및 프롬프트 관리
-- **.env**: 환경 변수 (API 키, DB 설정 등)
-- **requirements.txt**: Python 패키지 의존성
+---
 
-### 디렉토리 구조
-- **templates/**: 프론트엔드 파일들
-  - **index.html**: 메인 채팅 인터페이스
-  - **css/**: 스타일시트 디렉토리
-    - **styles.css**: 메인 스타일 (ChatGPT 테마)
-    - **responsive.css**: 반응형 디자인 (선택)
-    - **components.css**: 컴포넌트별 스타일 (선택)
-  - **js/**: JavaScript 디렉토리
-    - **app.js**: 메인 애플리케이션 로직
-    - **chat.js**: 채팅 기능 모듈
-    - **api.js**: API 통신 모듈
-    - **utils.js**: 유틸리티 함수
-- **static/**: 정적 자원
-  - **images/**: 로고, 아이콘 등
-  - **fonts/**: 커스텀 폰트 (필요시)
-- **data/**: 데이터 저장소
-  - **chatbot.db**: SQLite 데이터베이스
-  - **laws.json**: 법령 데이터
-  - **templates.json**: 답변 템플릿
-- **logs/**: 로그 파일 (자동 생성)
-- **tests/**: 테스트 파일 (선택)
+## 🔧 주요 함수
 
-## 🚀 즉시 시작 가능한 작업
+### app.py
 
-### MVP 개발 순서
-1. **디렉토리 구조 생성**: templates, static, data 폴더 구성
-2. **파일 재구성**: design 폴더 파일들을 templates 구조로 이동
-3. **서버 초기화**: FastAPI 서버 생성 및 기본 설정
-4. **DB 설계**: SQLite로 3개 테이블 생성
-5. **API 구현**: 핵심 엔드포인트 3개 구현
-6. **LLM 연동**: OpenAI API 기본 연결
-7. **프론트 연결**: fetch API로 백엔드 호출
-8. **테스트**: 로컬 환경에서 통합 테스트
+| 함수 | 역할 |
+|------|------|
+| `call_dify_knowledge()` | Dify API 호출 (FAQ 검색, Reranking) |
+| `extract_faq_id_from_content()` | Dify 응답에서 faq_id 추출 |
+| `get_policy_anchor()` | faq_topic.xlsx에서 법령 참조 찾기 |
+| `generate_answer_with_context()` | FAQ + 법령 컨텍스트로 GPT 답변 생성 |
+| `generate_suggested_answer()` | HTML 포맷 답변 생성 |
 
-### 필요한 의존성
-- fastapi: 웹 프레임워크
-- uvicorn: ASGI 서버
-- sqlalchemy: ORM
-- openai: AI API
-- python-dotenv: 환경변수 관리
+### database.py (법령 검색 전용)
 
-## 📝 구현 체크리스트
+| 함수 | 역할 |
+|------|------|
+| `search_laws(keyword, limit)` | 키워드로 법령 검색 (LIKE 패턴) |
+| `get_sheet_list()` | 14개 Sheet 목록 반환 |
+| `get_articles_by_sheet()` | Sheet별 조항 목록 |
+| `get_paragraphs_by_article()` | 조항별 항 목록 |
 
-### 필수 기능
-- [ ] FastAPI 서버 구축
-- [ ] SQLite 데이터베이스 설정
-- [ ] 채팅 메시지 저장/조회
-- [ ] OpenAI API 연동
-- [ ] 프론트엔드 API 통합
-- [ ] 기본 법령 데이터 입력
-- [ ] 에러 처리 시스템
+---
 
-### 추가 기능
-- [ ] 사용자 인증
-- [ ] 실시간 통신 (WebSocket)
-- [ ] 파일 업로드
-- [ ] 민원 자동 분류
-- [ ] 통계 대시보드
-- [ ] 법령 자동 업데이트
-- [ ] 다국어 지원
+## 🚀 실행 방법
 
-## 📌 주요 고려사항
+### 1. 초기 설정
 
-### 보안
-- API 키 안전한 관리
-- SQL Injection 방지
-- XSS 공격 방지
-- Rate Limiting 구현
-- HTTPS 적용
+```bash
+# 패키지 설치
+uv add pandas openpyxl flask openai python-dotenv requests
 
-### 성능
-- 응답 시간 2초 이내 목표
-- 동시 접속 100명 이상 지원
-- 효율적인 캐싱 전략
-- 데이터베이스 최적화
+# 법령 데이터 변환
+uv run python convert_law_to_db_sheets.py
 
-### 유지보수
-- 명확한 로깅 시스템
-- 에러 모니터링 도구
-- 버전 관리 전략
-- 배포 자동화
+# FAQ 업로드 (Dify 콘솔)
+# faq_topic.xlsx를 Dify 지식베이스에 업로드
+```
 
-### 사용성
-- 직관적인 인터페이스
-- 명확한 에러 메시지
-- 빠른 응답 속도
-- 모바일 최적화
+### 2. 환경 변수 설정 (.env)
 
-## 🎯 최종 목표
+```bash
+OPENAI_API_KEY=sk-proj-...
+DIFY_API_URL=http://112.173.179.199:5001/v1
+DIFY_API_KEY=dataset-...
+DIFY_DATASET_ID=...
+AI_MODE=dify
+```
 
-완성된 시스템의 핵심 가치:
+### 3. 서버 실행
 
-1. **신뢰성**: 정확한 법령 기반 답변 제공
-2. **효율성**: 민원 처리 시간 단축
-3. **접근성**: 언제 어디서나 사용 가능
-4. **확장성**: 새로운 민원 유형 쉽게 추가
-5. **안정성**: 24/7 무중단 서비스
+```bash
+python app.py
+```
 
-## 🔄 개발 프로세스
+### 4. 브라우저 접속
 
-### 반복적 개발
-- 2주 단위 스프린트
-- 매 스프린트 후 사용자 피드백 수렴
-- 점진적 기능 추가
-- 지속적 개선
+```
+http://localhost:5000
+```
 
-### 품질 관리
-- 코드 리뷰 프로세스
-- 자동화 테스트
-- 성능 모니터링
-- 사용자 만족도 측정
+---
 
-## 📈 성공 지표
+## 🎯 핵심 개선 사항
 
-### 단기 목표 (3개월)
-- 기본 채팅 기능 구현
-- 주요 민원 10종 처리 가능
-- 일일 사용자 50명 달성
+### Phase A: 법령 검색 하이브리드 통합 ✅
 
-### 중기 목표 (6개월)
-- 전체 민원 유형 50% 커버
-- 평균 응답 정확도 85% 이상
-- 일일 사용자 200명 달성
+**완료**: app.py STEP 4를 SQLite 기반으로 수정
+- Dify에서 법령 검색 → SQLite에서 법령 검색
+- FAQ는 Dify 유지 (시맨틱 검색 + Reranking)
 
-### 장기 목표 (1년)
-- 전체 민원 유형 90% 커버
-- AI 자동 학습 시스템 구축
-- 타 기관 확산 가능한 플랫폼화
+### Phase B: 검색 품질 개선
 
-## 🤝 협업 전략
+1. **법령 중복 제거** ✅
+   - law_id 기준으로 중복 제거 완료
 
-### 개발팀 구성
-- 백엔드 개발자: 서버 및 API 개발
-- 프론트엔드 개발자: UI/UX 개선
-- AI 엔지니어: LLM 최적화
-- 도메인 전문가: 법령 및 민원 지식
+2. **GPT 컨텍스트 확장** ✅
+   - 법령 전체 텍스트를 GPT에 전달 (200자 → 전체)
+   - FAQ 답변 + 법령 3개 전체 포함
 
-### 커뮤니케이션
-- 주간 진행상황 회의
-- 일일 스탠드업 미팅
-- 이슈 트래킹 시스템
-- 문서화 및 지식 공유
+3. **관련도 점수 기반 검색** (추후)
+   - 조항 제목 매칭: 10점
+   - 태그 매칭: 5점
+   - 항 내용 매칭: 3점
+   - 전체 텍스트 매칭: 1점
 
-이 전략을 따라 단계적으로 구현하면, 실제 운영 가능한 민원처리 챗봇을 성공적으로 개발할 수 있습니다.
+---
+
+## 📊 데이터 흐름 예시
+
+### 질문: "사업비 교부는 어떻게 받나요?"
+
+```
+STEP 1: Dify FAQ 검색
+→ 시맨틱 검색 결과:
+  {score: 0.89, faq_id: "FAQ-사업비-0005", content: "..."}
+  {score: 0.76, faq_id: "FAQ-교부금-0012", content: "..."}
+
+STEP 2: faq_id 추출
+→ "FAQ-사업비-0005" (best match)
+
+STEP 3: policy_anchor 매핑
+→ "기금운영지침 제10조; 사업비 교부"
+
+STEP 4: SQLite 법령 검색
+→ SELECT * FROM laws
+   WHERE full_text LIKE '%기금운영지침 제10조%'
+      OR full_text LIKE '%사업비 교부%'
+→ 결과: [법령1, 법령2]
+
+STEP 5: GPT 답변 생성
+→ Context:
+  [참고 FAQ 1]
+  질문: 사업비 교부는...
+  답변: 협약 체결 후...
+
+  [참고 법령 1]
+  기금운영지침 제10조 (전체 텍스트)
+
+  [참고 법령 2]
+  사업비 교부 관련 조항 (전체 텍스트)
+
+→ GPT가 컨텍스트 기반 답변 생성
+
+STEP 6: 응답 반환
+{
+  message: "사업비 교부는 협약 체결 후...",
+  suggested_answer: "<h4>📌 핵심 답변</h4>...",
+  related_laws: [
+    {title: "기금운영지침 제10조", source: "FAQ Database"},
+    {title: "사업비 교부", source: "FAQ Database"}
+  ]
+}
+```
+
+---
+
+## 🔍 Reranking 설명
+
+### Dify RAG Reranking (STEP 1)
+
+```python
+# app.py:407-420
+payload = {
+    "query": user_message,
+    "retrieval_model": {
+        "search_method": "semantic_search",
+        "reranking_enable": True,          # ✨ Reranking 활성화
+        "top_k": 3,
+        "score_threshold": 0.5
+    }
+}
+```
+
+**Reranking 프로세스**:
+1. 임베딩 검색으로 100개 후보 찾기
+2. Reranking 모델로 재정렬 (관련도 높은 순)
+3. top_k=3개만 반환 (score 포함)
+
+**SQLite는 Reranking 없음**:
+- policy_anchor가 정확한 키워드 제공 → LIKE 검색으로 충분
+- 빠른 검색 속도 (인덱싱)
+
+---
+
+## 🎯 이 전략의 장점
+
+### 1. 최적화된 검색
+- FAQ: 자연어 이해 (Dify Reranking)
+- 법령: 정확한 키워드 매칭 (SQLite)
+
+### 2. 비용 효율
+- Dify API 호출 1번만 (FAQ)
+- 법령은 로컬 SQLite (무료, 빠름)
+
+### 3. 확장성
+- 법령 데이터 증가해도 파일 크기 제한 없음
+- Dify 용량 절약
+
+### 4. 정확성
+- policy_anchor로 FAQ-법령 연결
+- GPT가 정확한 법령 컨텍스트 참고
+
+---
+
+## ✅ 구현 완료 상태
+
+- [x] SQLite DB 구축 (1,063개 법령)
+- [x] Dify 지식베이스 구축 (102개 FAQ)
+- [x] app.py 하이브리드 RAG 구현
+- [x] database.py 법령 검색 함수
+- [x] 프론트엔드 연동 (design/)
+- [x] 법령 중복 제거
+- [x] GPT 컨텍스트 확장
+
+---
+
+## 📝 결론
+
+이 전략은 **Dify RAG의 시맨틱 검색 장점**과 **SQLite의 빠른 정확한 검색**을 결합한 하이브리드 아키텍처입니다.
+
+**핵심 원칙**:
+- FAQ는 자연어 이해가 중요 → Dify (Reranking)
+- 법령은 정확한 참조가 중요 → SQLite (policy_anchor)
+- 답변은 컨텍스트가 중요 → OpenAI GPT
+
+**최종 목표**: 직원이 민원 질문을 입력하면 자동으로 FAQ와 법령을 참고한 정확한 답변 초안을 제공

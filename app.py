@@ -11,6 +11,7 @@ import traceback
 import requests
 import pandas as pd
 import re
+import database  # SQLite law search functions
 
 # Load environment variables
 load_dotenv()
@@ -135,6 +136,68 @@ def index():
     app.logger.info('Main page accessed from IP: %s', request.remote_addr)
     return render_template('index.html')
 
+def extract_keywords_from_question(question: str) -> list:
+    """
+    사용자 질문에서 키워드 추출 (간단한 방식)
+    향후 NLP 기반으로 개선 가능
+    """
+    # 불용어 리스트
+    stopwords = ['은', '는', '이', '가', '을', '를', '의', '에', '로', '으로', '와', '과',
+                 '에서', '까지', '부터', '하다', '되다', '있다', '없다', '하는', '되는',
+                 '어떻게', '무엇', '언제', '어디', '왜', '누가', '어떤', '몇', '얼마',
+                 '합니다', '입니다', '습니다', '니다', '요', '할', '수', '것', '등']
+
+    # 특수문자 제거 및 공백으로 분리
+    import re
+    words = re.sub(r'[^\w\s]', ' ', question).split()
+
+    # 불용어 제거 및 2글자 이상만 추출
+    keywords = [w for w in words if len(w) >= 2 and w not in stopwords]
+
+    return keywords[:5]  # 최대 5개 키워드
+
+def search_laws_by_keywords(keywords: list, limit: int = 5) -> list:
+    """
+    키워드 기반 SQLite 법령 검색 (중복 제거 포함)
+    - sheet_name + article_num 기준으로 중복 제거
+    """
+    if not keywords:
+        return []
+
+    all_results = []
+    seen_keys = set()  # 중복 체크용 (sheet_name + article_num 조합)
+    total_raw_count = 0  # 중복 제거 전 총 개수
+
+    for keyword in keywords:
+        laws = database.search_laws(keyword, limit=3)
+        total_raw_count += len(laws)  # 원본 개수 누적
+        for law in laws:
+            sheet_name = law.get('sheet_name') or ''
+            article_num = law.get('article_num') or ''
+
+            # 고유 키: sheet_name + article_num 조합 (law_id 무시)
+            unique_key = f"{sheet_name}_{article_num}"
+
+            # 중복 체크
+            if unique_key in seen_keys:
+                continue
+
+            seen_keys.add(unique_key)
+            all_results.append({
+                'law_id': law.get('law_id'),
+                'title': law.get('article_title') or law.get('law_title') or '제목 없음',
+                'content': law.get('full_text') or law.get('paragraph_content') or '',
+                'sheet_name': sheet_name,
+                'article_num': article_num,
+                'source': 'SQLite DB',
+                'matched_keyword': keyword
+            })
+
+    # 중복 제거 로그 출력
+    print(f"[Dedup] 중복 제거 전: {total_raw_count}개, 후: {len(all_results)}개")
+
+    return all_results[:limit]
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     """Handle chat messages and generate responses"""
@@ -166,7 +229,25 @@ def chat():
         matched_faq_id = None
         related_laws = []
 
-        # ===== Hybrid RAG Mode (Dify + Local Mapping) =====
+        # ===== [Action A] 키워드 추출 & SQLite 법령 검색 (즉시 실행) =====
+        app.logger.info('[Action A] Extracting keywords and searching SQLite DB')
+        keywords = extract_keywords_from_question(user_message)
+        app.logger.info(f'Extracted keywords: {keywords}')
+
+        sqlite_laws = search_laws_by_keywords(keywords, limit=5)
+        app.logger.info(f'Found {len(sqlite_laws)} laws from SQLite')
+
+        # SQLite 검색 결과를 related_laws에 즉시 저장
+        for law in sqlite_laws:
+            related_laws.append({
+                'title': f"{law['sheet_name']} - {law['title']}",
+                'content': law['content'][:300] + ('...' if len(law['content']) > 300 else ''),
+                'article_num': law['article_num'],
+                'source': 'SQLite DB',
+                'matched_keyword': law.get('matched_keyword', '')
+            })
+
+        # ===== [Action B] Dify API 호출 (Hybrid RAG Mode) =====
         if AI_MODE == 'dify':
             try:
                 app.logger.info('Using Hybrid RAG mode (Dify FAQ + Local Policy Mapping)')
@@ -195,19 +276,27 @@ def chat():
                         if policy_anchor:
                             app.logger.info(f'Mapped policy_anchor: {policy_anchor[:100]}...')
 
-                            # STEP 4: Search policy documents in Dify
-                            app.logger.info('Step 4: Searching policy documents in Dify')
+                            # STEP 4: Search policy documents in SQLite DB
+                            app.logger.info('Step 4: Searching policy documents in SQLite DB')
                             policy_docs = []
                             policy_anchors = [p.strip() for p in policy_anchor.split(';')]
 
                             for idx, anchor in enumerate(policy_anchors[:2], 1):  # Max 2 anchors
-                                app.logger.debug(f'Searching policy doc {idx}: {anchor[:50]}...')
-                                policy_result = call_dify_knowledge(anchor, top_k=2)
-                                if policy_result['success'] and policy_result['records']:
-                                    policy_docs.extend(policy_result['records'])
-                                    app.logger.debug(f'Found {len(policy_result["records"])} policy docs')
+                                app.logger.debug(f'Searching laws in SQLite {idx}: {anchor[:50]}...')
+                                laws = database.search_laws(anchor, limit=2)
 
-                            app.logger.info(f'Total policy docs retrieved: {len(policy_docs)}')
+                                # Convert SQLite format to Dify-compatible format
+                                for law in laws:
+                                    policy_docs.append({
+                                        'segment': {
+                                            'content': law['paragraph_content'] or law['full_text'],
+                                            'document': {'name': law['sheet_name']}
+                                        },
+                                        'score': 0.85  # SQLite doesn't provide scores
+                                    })
+                                    app.logger.debug(f'Found law: {law["article_title"] or law["law_title"]}')
+
+                            app.logger.info(f'Total policy docs retrieved from SQLite: {len(policy_docs)}')
 
                             # STEP 5: Generate answer with FAQ + Policy context
                             app.logger.info('Step 5: Generating answer with FAQ + Policy context')
@@ -284,12 +373,9 @@ def chat():
             related_laws=related_laws
         )
 
-        # Generate related_laws if not already set by Hybrid RAG
-        if not related_laws:
-            if AI_MODE == 'dify' and retrieved_docs:
-                related_laws = extract_laws_from_retrieved_docs(retrieved_docs)
-            else:
-                related_laws = generate_related_laws(user_message)
+        # related_laws는 이미 [Action A]에서 SQLite 검색 결과로 채워져 있음
+        # Dify에서 추가 법령 정보가 있으면 병합
+        app.logger.info(f'[Final] Total related_laws from SQLite: {len(related_laws)}')
 
         app.logger.info(f'Successfully processed chat request for session {session_id}')
 
@@ -303,7 +389,9 @@ def chat():
             'metadata': {
                 'ai_mode': AI_MODE,
                 'retrieval_count': len(retrieved_docs) if retrieved_docs else 0,
-                'matched_faq_id': matched_faq_id
+                'matched_faq_id': matched_faq_id,
+                'extracted_keywords': keywords,
+                'sqlite_laws_count': len(sqlite_laws)
             }
         }
 
@@ -408,11 +496,7 @@ def call_dify_knowledge(user_message, top_k=3):
             "query": user_message,
             "retrieval_model": {
                 "search_method": "semantic_search",  # or "full_text_search", "hybrid_search"
-                "reranking_enable": True,
-                "reranking_model": {
-                    "reranking_provider_name": "",
-                    "reranking_model_name": ""
-                },
+                "reranking_enable": False,  # Reranking 비활성화 (OpenAI API 불필요)
                 "top_k": top_k,
                 "score_threshold_enabled": True,
                 "score_threshold": 0.5
@@ -840,6 +924,53 @@ def generate_related_laws(user_message):
         }
     ]
 
+# ========================================
+# 관련 법령 API 엔드포인트
+# ========================================
+
+@app.route('/api/laws/sheets', methods=['GET'])
+def get_sheets():
+    """Sheet 목록 조회 (지침 목록)"""
+    try:
+        sheets = database.get_sheet_list()
+        app.logger.info(f'Retrieved {len(sheets)} sheets')
+        return jsonify({'sheets': sheets})
+    except Exception as e:
+        app.logger.error(f'Error getting sheets: {str(e)}')
+        return jsonify({'error': str(e), 'sheets': []}), 500
+
+@app.route('/api/laws/articles', methods=['GET'])
+def get_articles():
+    """조항 목록 조회"""
+    try:
+        sheet_name = request.args.get('sheet_name')
+        if not sheet_name:
+            return jsonify({'error': 'sheet_name is required', 'articles': []}), 400
+
+        articles = database.get_articles_by_sheet(sheet_name)
+        app.logger.info(f'Retrieved {len(articles)} articles for sheet: {sheet_name}')
+        return jsonify({'articles': articles})
+    except Exception as e:
+        app.logger.error(f'Error getting articles: {str(e)}')
+        return jsonify({'error': str(e), 'articles': []}), 500
+
+@app.route('/api/laws/paragraphs', methods=['GET'])
+def get_paragraphs():
+    """항 목록 조회"""
+    try:
+        sheet_name = request.args.get('sheet_name')
+        article_num = request.args.get('article_num')
+
+        if not sheet_name or not article_num:
+            return jsonify({'error': 'sheet_name and article_num are required', 'paragraphs': []}), 400
+
+        paragraphs = database.get_paragraphs_by_article(sheet_name, article_num)
+        app.logger.info(f'Retrieved {len(paragraphs)} paragraphs for {sheet_name} - {article_num}')
+        return jsonify({'paragraphs': paragraphs})
+    except Exception as e:
+        app.logger.error(f'Error getting paragraphs: {str(e)}')
+        return jsonify({'error': str(e), 'paragraphs': []}), 500
+
 @app.route('/api/new-session', methods=['POST'])
 def new_session():
     """Create a new chat session"""
@@ -920,10 +1051,10 @@ if __name__ == '__main__':
 
     # 터미널에 명확하게 URL 출력
     print('\n' + '='*60)
-    print('🚀 Civil Complaint Chatbot Server Started!')
+    print('Civil Complaint Chatbot Server Started!')
     print('='*60)
-    print(f'📍 Local:   http://localhost:5000')
-    print(f'📍 Network: http://127.0.0.1:5000')
+    print(f'Local:   http://localhost:5000')
+    print(f'Network: http://127.0.0.1:5000')
     print('='*60)
     print('Press CTRL+C to quit\n')
 

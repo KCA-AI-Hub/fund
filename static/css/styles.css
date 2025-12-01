@@ -697,6 +697,87 @@ body.has-panels .chat-pane {
     gap: 4px;
 }
 
+/* ========== 관련법령 UI 개선 - 지침명/조번호 강조 ========== */
+
+/* 지침명 헤더 영역 */
+.law-header {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    margin: -15px -15px 12px -15px;
+    padding: 12px 15px;
+    border-radius: 12px 12px 0 0;
+}
+
+.law-sheet-name {
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.law-sheet-name::before {
+    content: "📋";
+    font-size: 16px;
+}
+
+/* 조번호 + 조제목 영역 */
+.law-article-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.law-article-num {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+}
+
+.law-article-title {
+    color: #1f2937;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* 본문 영역 */
+.law-content-text {
+    background: #f9fafb;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.law-content-text p {
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* 하단 키워드 태그 영역 */
+.law-footer {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.law-keyword-tag {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #78350f;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(251, 191, 36, 0.3);
+}
+
 .law-guideline {
     background: linear-gradient(135deg, #f3e5f5, #e1bee7);
     color: #7b1fa2;

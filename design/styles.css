@@ -641,6 +641,82 @@ body.has-panels .chat-pane {
     gap: 4px;
 }
 
+/* 새로운 법령 카드 스타일 - 지침명/조번호 강조 */
+.law-header {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    margin: -15px -15px 12px -15px;
+    padding: 12px 15px;
+    border-radius: 12px 12px 0 0;
+}
+
+.law-sheet-name {
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.law-sheet-name::before {
+    content: '\f0c5';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    font-size: 12px;
+}
+
+.law-article-info {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #e5e7eb;
+}
+
+.law-article-num {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.law-article-title {
+    color: #374151;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.law-content-text {
+    margin-bottom: 10px;
+}
+
+.law-content-text p {
+    color: #6b7280;
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.law-footer {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #f3f4f6;
+}
+
+.law-keyword-tag {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #92400e;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid #fcd34d;
+}
+
+/* 기존 스타일 (하위 호환성) */
 .law-guideline {
     background: linear-gradient(135deg, #f3e5f5, #e1bee7);
     color: #7b1fa2;
