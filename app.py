@@ -95,6 +95,77 @@ app.logger.info(f"Fallback to OpenAI: {FALLBACK_TO_OPENAI}")
 # Store chat sessions in memory (in production, use a database)
 chat_sessions = {}
 
+# ========================================
+# [1단계] 마스터 트리 데이터 로드 (서버 시작 시 1회)
+# ========================================
+LAW_MASTER_TREE = {}
+
+def build_law_master_tree():
+    """
+    DB에서 법령 데이터를 읽어 3단 계층형 딕셔너리로 변환
+    구조: { 지침명: { 제N조: { title: "조항제목", paragraphs: ["항1내용", "항2내용"] } } }
+    """
+    import sqlite3
+    global LAW_MASTER_TREE
+
+    try:
+        conn = sqlite3.connect('data/chatbot.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # 모든 법령 데이터 조회
+        cursor.execute('''
+            SELECT sheet_name, article_num, article_title, paragraph_num, paragraph_content, full_text
+            FROM laws
+            WHERE sheet_name IS NOT NULL AND article_num IS NOT NULL
+            ORDER BY sheet_name,
+                CASE WHEN article_num GLOB '[0-9]*' THEN CAST(article_num AS INTEGER) ELSE 9999 END,
+                paragraph_num
+        ''')
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        # 3단 계층형 딕셔너리 생성
+        tree = {}
+        for row in rows:
+            sheet_name = row['sheet_name']
+            article_num = row['article_num']
+            article_title = row['article_title'] or ''
+            paragraph_num = row['paragraph_num']
+            paragraph_content = row['paragraph_content'] or row['full_text'] or ''
+
+            # 1단계: 지침명
+            if sheet_name not in tree:
+                tree[sheet_name] = {}
+
+            # 2단계: 조항 (제N조)
+            article_key = f"제{article_num}조"
+            if article_key not in tree[sheet_name]:
+                tree[sheet_name][article_key] = {
+                    'title': article_title,
+                    'paragraphs': []
+                }
+
+            # 3단계: 항 내용 추가 (중복 방지)
+            if paragraph_content and paragraph_content not in tree[sheet_name][article_key]['paragraphs']:
+                # 항 번호가 있으면 포함
+                if paragraph_num:
+                    para_text = f"제{int(paragraph_num)}항: {paragraph_content}"
+                else:
+                    para_text = paragraph_content
+                tree[sheet_name][article_key]['paragraphs'].append(para_text)
+
+        LAW_MASTER_TREE = tree
+        print(f"[Server] 마스터 트리 로드 완료: {len(tree)}개 지침, 총 {sum(len(v) for v in tree.values())}개 조항")
+
+    except Exception as e:
+        print(f"[Server] 마스터 트리 로드 실패: {e}")
+        LAW_MASTER_TREE = {}
+
+# 서버 시작 시 마스터 트리 로드
+build_law_master_tree()
+
 # Load FAQ policy mapping from faq_topic.xlsx
 faq_policy_map = {}
 try:
@@ -927,6 +998,24 @@ def generate_related_laws(user_message):
 # ========================================
 # 관련 법령 API 엔드포인트
 # ========================================
+
+@app.route('/api/laws/master-tree', methods=['GET'])
+def get_law_master_tree():
+    """
+    [2단계] 마스터 트리 데이터 반환
+    서버 시작 시 로드한 전역 변수를 그대로 반환 (DB 실시간 조회 X)
+    """
+    try:
+        app.logger.info(f'Master tree requested: {len(LAW_MASTER_TREE)} sheets')
+        return jsonify({
+            'success': True,
+            'data': LAW_MASTER_TREE,
+            'sheet_count': len(LAW_MASTER_TREE),
+            'article_count': sum(len(v) for v in LAW_MASTER_TREE.values())
+        })
+    except Exception as e:
+        app.logger.error(f'Error getting master tree: {str(e)}')
+        return jsonify({'success': False, 'error': str(e), 'data': {}}), 500
 
 @app.route('/api/laws/sheets', methods=['GET'])
 def get_sheets():

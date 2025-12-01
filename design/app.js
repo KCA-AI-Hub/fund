@@ -543,9 +543,41 @@ class ComplaintChatbot {
     showLawEditPanel() {
         this.lawEditPanel.classList.add('show');
         this.currentLawEditStep = 1;
-        this.selectedClauses = [];
+
+        // 기존 법령 데이터 복원
+        this.restoreSelectedClausesFromLawContent();
+
         this.navigateLawPanel(1);
         this.loadGuidelineData();
+    }
+
+    // 현재 lawContent에서 기존 선택된 법령 데이터 복원
+    restoreSelectedClausesFromLawContent() {
+        this.selectedClauses = [];
+
+        const lawItems = this.lawContent.querySelectorAll('.law-item:not(.empty)');
+        lawItems.forEach(item => {
+            const clauseId = item.dataset.clauseId;
+            if (!clauseId) return;
+
+            // 지침명, 조항명 추출
+            const guidelineEl = item.querySelector('.law-guideline') || item.querySelector('.law-sheet-name');
+            const articleEl = item.querySelector('.law-article') || item.querySelector('.law-article-num');
+            const titleEl = item.querySelector('h4') || item.querySelector('.law-article-title');
+            const contentEl = item.querySelector('p') || item.querySelector('.law-content-text p');
+
+            const clause = {
+                id: clauseId,
+                title: titleEl ? titleEl.textContent : '',
+                content: contentEl ? contentEl.textContent : '',
+                guideline: { name: guidelineEl ? guidelineEl.textContent : '' },
+                article: { name: articleEl ? articleEl.textContent : '' }
+            };
+
+            this.selectedClauses.push(clause);
+        });
+
+        console.log(`[Frontend] 기존 ${this.selectedClauses.length}개 법령 항목 복원됨`);
     }
     
     // 법령 편집 패널 숨김
@@ -578,10 +610,28 @@ class ComplaintChatbot {
         }
     }
     
-    // 지침 데이터 로드 (고정 데이터 사용)
-    loadGuidelineData() {
-        // LAW_DATA.guidelines 사용 (law_data.js에서 로드)
-        this.renderGuidelineList(LAW_DATA.guidelines);
+    // 지침 데이터 로드 (API 호출)
+    async loadGuidelineData() {
+        try {
+            const response = await fetch('/api/laws/sheets');
+            const data = await response.json();
+
+            if (data.sheets && data.sheets.length > 0) {
+                // API 응답을 기존 형식으로 변환
+                const guidelines = data.sheets.map(sheet => ({
+                    id: sheet,
+                    name: sheet,
+                    description: ''
+                }));
+                this.renderGuidelineList(guidelines);
+            } else {
+                console.warn('No sheets found from API');
+                this.guidelineList.innerHTML = '<p style="color: #8e8ea0; padding: 20px;">법령 데이터를 불러올 수 없습니다.</p>';
+            }
+        } catch (error) {
+            console.error('Failed to load sheets:', error);
+            this.guidelineList.innerHTML = '<p style="color: #e74c3c; padding: 20px;">서버 연결 실패. 백엔드 서버가 실행 중인지 확인하세요.</p>';
+        }
     }
     
     // 지침 목록 렌더링 (싹 지우고 다시 그리기)
@@ -610,11 +660,28 @@ class ComplaintChatbot {
         this.navigateLawPanel(2);
     }
     
-    // 조항 데이터 로드 (고정 데이터 사용)
-    loadArticleData(sheetName) {
-        // LAW_DATA.articles 사용 (law_data.js에서 로드)
-        const articles = LAW_DATA.articles[sheetName] || [];
-        this.renderArticleList(articles);
+    // 조항 데이터 로드 (API 호출)
+    async loadArticleData(sheetName) {
+        try {
+            const response = await fetch(`/api/laws/articles?sheet_name=${encodeURIComponent(sheetName)}`);
+            const data = await response.json();
+
+            if (data.articles && data.articles.length > 0) {
+                // API 응답을 기존 형식으로 변환
+                const articles = data.articles.map(article => ({
+                    id: article.article_num,
+                    name: `제${article.article_num}조`,
+                    description: article.article_title || ''
+                }));
+                this.renderArticleList(articles);
+            } else {
+                console.warn('No articles found for sheet:', sheetName);
+                this.articleList.innerHTML = '<p style="color: #8e8ea0; padding: 20px;">해당 지침에 조항이 없습니다.</p>';
+            }
+        } catch (error) {
+            console.error('Failed to load articles:', error);
+            this.articleList.innerHTML = '<p style="color: #e74c3c; padding: 20px;">조항 데이터를 불러오는데 실패했습니다.</p>';
+        }
     }
     
     // 조항 목록 렌더링 (싹 지우고 다시 그리기)
@@ -644,21 +711,30 @@ class ComplaintChatbot {
         this.navigateLawPanel(3);
     }
     
-    // 항 데이터 로드 (고정 데이터 사용)
-    loadClauseData(sheetName, articleNum) {
-        // LAW_DATA.paragraphs 사용 (law_data.js에서 로드)
-        const paragraphs = LAW_DATA.paragraphs[sheetName]?.[articleNum] || [];
+    // 항 데이터 로드 (API 호출)
+    async loadClauseData(sheetName, articleNum) {
+        try {
+            const response = await fetch(`/api/laws/paragraphs?sheet_name=${encodeURIComponent(sheetName)}&article_num=${encodeURIComponent(articleNum)}`);
+            const data = await response.json();
 
-        // 렌더링용 형식으로 변환
-        const clauses = paragraphs.map(para => ({
-            id: para.id,
-            title: para.title,
-            content: para.content,
-            guideline: { name: sheetName },
-            article: { name: articleNum }
-        }));
-
-        this.renderClauseList(clauses);
+            if (data.paragraphs && data.paragraphs.length > 0) {
+                // API 응답을 기존 형식으로 변환
+                const clauses = data.paragraphs.map(para => ({
+                    id: para.paragraph_num || para.id,
+                    title: para.paragraph_num ? `제${para.paragraph_num}항` : '',
+                    content: para.paragraph_content || para.content || '',
+                    guideline: { name: sheetName },
+                    article: { name: `제${articleNum}조` }
+                }));
+                this.renderClauseList(clauses);
+            } else {
+                console.warn('No paragraphs found for:', sheetName, articleNum);
+                this.clauseList.innerHTML = '<p style="color: #8e8ea0; padding: 20px;">해당 조항에 항이 없습니다.</p>';
+            }
+        } catch (error) {
+            console.error('Failed to load paragraphs:', error);
+            this.clauseList.innerHTML = '<p style="color: #e74c3c; padding: 20px;">항 데이터를 불러오는데 실패했습니다.</p>';
+        }
     }
     
     // 항 목록 렌더링 (싹 지우고 다시 그리기, 복수선택 가능)

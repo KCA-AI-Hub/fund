@@ -882,8 +882,140 @@ class ComplaintChatbot {
             this.currentLawEditStep = 1;
             this.selectedClauses = [];
             this.navigateLawPanel(1);
-            this.loadGuidelineData();
+            this.loadMasterTree(); // 마스터 트리 API 호출
         }
+    }
+
+    // [3단계] 마스터 트리 데이터 로드
+    async loadMasterTree() {
+        try {
+            const response = await fetch('/api/laws/master-tree');
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                this.masterTreeData = result.data;
+                this.renderGuidelineListFromTree();
+                console.log(`[Frontend] 마스터 트리 로드: ${result.sheet_count}개 지침, ${result.article_count}개 조항`);
+            } else {
+                console.warn('마스터 트리 데이터 없음');
+                if (this.guidelineList) {
+                    this.guidelineList.innerHTML = '<p style="color: #8e8ea0; padding: 20px;">법령 데이터를 불러올 수 없습니다.</p>';
+                }
+            }
+        } catch (error) {
+            console.error('마스터 트리 로드 실패:', error);
+            if (this.guidelineList) {
+                this.guidelineList.innerHTML = '<p style="color: #e74c3c; padding: 20px;">서버 연결 실패. 백엔드 서버가 실행 중인지 확인하세요.</p>';
+            }
+        }
+    }
+
+    // [3단계] 지침 목록 렌더링 (Object.keys 순회)
+    renderGuidelineListFromTree() {
+        if (!this.guidelineList || !this.masterTreeData) return;
+
+        this.guidelineList.innerHTML = '';
+
+        Object.keys(this.masterTreeData).forEach(sheetName => {
+            const articleCount = Object.keys(this.masterTreeData[sheetName]).length;
+            const button = document.createElement('button');
+            button.className = 'guideline-btn';
+            button.innerHTML = `
+                <span class="guideline-name">${sheetName}</span>
+                <span class="guideline-desc">${articleCount}개 조항</span>
+            `;
+            button.addEventListener('click', () => this.selectGuidelineFromTree(sheetName));
+            this.guidelineList.appendChild(button);
+        });
+    }
+
+    // [3단계] 지침 선택 → 조항 목록 표시
+    selectGuidelineFromTree(sheetName) {
+        this.currentSelectedGuideline = { id: sheetName, name: sheetName };
+        if (this.selectedGuidelineTitle) {
+            this.selectedGuidelineTitle.textContent = sheetName;
+        }
+        this.renderArticleListFromTree(sheetName);
+        this.navigateLawPanel(2);
+    }
+
+    // [3단계] 조항 목록 렌더링 (Object.keys 순회)
+    renderArticleListFromTree(sheetName) {
+        if (!this.articleList || !this.masterTreeData || !this.masterTreeData[sheetName]) return;
+
+        this.articleList.innerHTML = '';
+        const articles = this.masterTreeData[sheetName];
+
+        Object.keys(articles).forEach(articleKey => {
+            const article = articles[articleKey];
+            const paragraphCount = article.paragraphs ? article.paragraphs.length : 0;
+            const button = document.createElement('button');
+            button.className = 'article-btn';
+            button.innerHTML = `
+                <span class="article-name">${articleKey}</span>
+                <span class="article-desc">${article.title || ''} (${paragraphCount}개 항)</span>
+            `;
+            button.addEventListener('click', () => this.selectArticleFromTree(sheetName, articleKey));
+            this.articleList.appendChild(button);
+        });
+    }
+
+    // [3단계] 조항 선택 → 항 목록 표시
+    selectArticleFromTree(sheetName, articleKey) {
+        this.currentSelectedArticle = { id: articleKey, name: articleKey };
+        if (this.selectedArticleTitle) {
+            this.selectedArticleTitle.textContent = articleKey;
+        }
+        this.renderClauseListFromTree(sheetName, articleKey);
+        this.navigateLawPanel(3);
+    }
+
+    // [3단계] 항 목록 렌더링 (배열 순회)
+    renderClauseListFromTree(sheetName, articleKey) {
+        if (!this.clauseList || !this.masterTreeData) return;
+
+        const article = this.masterTreeData[sheetName]?.[articleKey];
+        if (!article || !article.paragraphs) {
+            this.clauseList.innerHTML = '<p style="color: #8e8ea0; padding: 20px;">해당 조항에 항이 없습니다.</p>';
+            return;
+        }
+
+        this.clauseList.innerHTML = '';
+
+        article.paragraphs.forEach((paragraphContent, index) => {
+            const clauseId = `${sheetName}-${articleKey}-${index}`;
+            const button = document.createElement('button');
+            button.className = 'clause-btn';
+            button.dataset.clauseId = clauseId;
+            button.innerHTML = `
+                <div class="clause-content">
+                    <div class="clause-text">${paragraphContent}</div>
+                </div>
+            `;
+            button.addEventListener('click', () => this.toggleClauseSelectionFromTree({
+                id: clauseId,
+                title: articleKey,
+                content: paragraphContent,
+                guideline: { name: sheetName },
+                article: { name: articleKey }
+            }, button));
+            this.clauseList.appendChild(button);
+        });
+    }
+
+    // [3단계] 항 선택/해제 토글
+    toggleClauseSelectionFromTree(clause, button) {
+        const isSelected = button.classList.contains('selected');
+
+        if (isSelected) {
+            button.classList.remove('selected');
+            this.selectedClauses = this.selectedClauses.filter(c => c.id !== clause.id);
+        } else {
+            button.classList.add('selected');
+            this.selectedClauses.push(clause);
+        }
+
+        this.updateSelectedCount();
     }
     
     // 법령 편집 패널 숨김
@@ -918,18 +1050,32 @@ class ComplaintChatbot {
         }
     }
     
-    // 지침 데이터 로드 (더미 데이터)
-    loadGuidelineData() {
-        // TODO: DB에서 지침 데이터 가져오기
-        const guidelines = [
-            { id: 'aa', name: 'AA지침', description: '민원처리 기본 지침' },
-            { id: 'bb', name: 'BB지침', description: '행정절차 관련 지침' },
-            { id: 'cc', name: 'CC지침', description: '정보공개 처리 지침' },
-            { id: 'dd', name: 'DD지침', description: '민원인 권리보호 지침' },
-            { id: 'ee', name: 'EE지침', description: '전자민원 처리 지침' }
-        ];
-        
-        this.renderGuidelineList(guidelines);
+    // 지침 데이터 로드 (API 호출)
+    async loadGuidelineData() {
+        try {
+            const response = await fetch('/api/laws/sheets');
+            const data = await response.json();
+
+            if (data.sheets && data.sheets.length > 0) {
+                // API 응답을 기존 형식으로 변환
+                const guidelines = data.sheets.map(sheet => ({
+                    id: sheet,
+                    name: sheet,
+                    description: ''
+                }));
+                this.renderGuidelineList(guidelines);
+            } else {
+                console.warn('No sheets found from API');
+                if (this.guidelineList) {
+                    this.guidelineList.innerHTML = '<p style="color: #8e8ea0; padding: 20px;">법령 데이터를 불러올 수 없습니다.</p>';
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load sheets:', error);
+            if (this.guidelineList) {
+                this.guidelineList.innerHTML = '<p style="color: #e74c3c; padding: 20px;">서버 연결 실패. 백엔드 서버가 실행 중인지 확인하세요.</p>';
+            }
+        }
     }
     
     // 지침 목록 렌더링
@@ -960,18 +1106,32 @@ class ComplaintChatbot {
         this.navigateLawPanel(2);
     }
     
-    // 조항 데이터 로드 (더미 데이터)
-    loadArticleData(guidelineId) {
-        // TODO: DB에서 선택된 지침의 조항 데이터 가져오기
-        const articles = [
-            { id: '1', name: '1조(목적)', description: '이 지침의 목적을 규정' },
-            { id: '2', name: '2조(점검방법)', description: '민원처리 점검방법을 규정' },
-            { id: '3', name: '3조(처리기한)', description: '민원처리 기한을 규정' },
-            { id: '4', name: '4조(담당자)', description: '민원처리 담당자를 규정' },
-            { id: '5', name: '5조(이의신청)', description: '민원처리 이의신청 절차를 규정' }
-        ];
-        
-        this.renderArticleList(articles);
+    // 조항 데이터 로드 (API 호출)
+    async loadArticleData(sheetName) {
+        try {
+            const response = await fetch(`/api/laws/articles?sheet_name=${encodeURIComponent(sheetName)}`);
+            const data = await response.json();
+
+            if (data.articles && data.articles.length > 0) {
+                // API 응답을 기존 형식으로 변환
+                const articles = data.articles.map(article => ({
+                    id: article.article_num,
+                    name: `제${article.article_num}조`,
+                    description: article.article_title || ''
+                }));
+                this.renderArticleList(articles);
+            } else {
+                console.warn('No articles found for sheet:', sheetName);
+                if (this.articleList) {
+                    this.articleList.innerHTML = '<p style="color: #8e8ea0; padding: 20px;">해당 지침에 조항이 없습니다.</p>';
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load articles:', error);
+            if (this.articleList) {
+                this.articleList.innerHTML = '<p style="color: #e74c3c; padding: 20px;">조항 데이터를 불러오는데 실패했습니다.</p>';
+            }
+        }
     }
     
     // 조항 목록 렌더링
@@ -1002,33 +1162,35 @@ class ComplaintChatbot {
         this.navigateLawPanel(3);
     }
     
-    // 항 데이터 로드 (더미 데이터)
-    loadClauseData(articleId) {
-        // TODO: DB에서 선택된 조항의 항 데이터 가져오기
-        const clauses = [
-            { 
-                id: '1-1', 
-                title: '1항', 
-                content: '민원사무의 처리에 관한 기본사항을 정함으로써 민원사무의 신속하고 공정한 처리와 국민의 권익보호를 도모함을 목적으로 한다.' 
-            },
-            { 
-                id: '1-2', 
-                title: '2항', 
-                content: '이 법에서 정하지 아니한 사항에 대하여는 다른 법률이 정하는 바에 따른다.' 
-            },
-            { 
-                id: '1-3', 
-                title: '3항', 
-                content: '민원처리기관은 민원인의 권익보호와 편의증진을 위하여 노력하여야 한다.' 
-            },
-            { 
-                id: '1-4', 
-                title: '4항', 
-                content: '민원처리기관은 민원사무를 처리할 때 관련 법령과 기준에 따라 공정하고 투명하게 처리하여야 한다.' 
+    // 항 데이터 로드 (API 호출)
+    async loadClauseData(articleNum) {
+        try {
+            const sheetName = this.currentSelectedGuideline?.id || '';
+            const response = await fetch(`/api/laws/paragraphs?sheet_name=${encodeURIComponent(sheetName)}&article_num=${encodeURIComponent(articleNum)}`);
+            const data = await response.json();
+
+            if (data.paragraphs && data.paragraphs.length > 0) {
+                // API 응답을 기존 형식으로 변환
+                const clauses = data.paragraphs.map(para => ({
+                    id: para.law_id || para.paragraph_num,
+                    title: para.paragraph_num ? `제${para.paragraph_num}항` : (para.article_title || '본문'),
+                    content: para.paragraph_content || para.full_text || '',
+                    guideline: { name: sheetName },
+                    article: { name: `제${articleNum}조` }
+                }));
+                this.renderClauseList(clauses);
+            } else {
+                console.warn('No paragraphs found for:', sheetName, articleNum);
+                if (this.clauseList) {
+                    this.clauseList.innerHTML = '<p style="color: #8e8ea0; padding: 20px;">해당 조항에 항이 없습니다.</p>';
+                }
             }
-        ];
-        
-        this.renderClauseList(clauses);
+        } catch (error) {
+            console.error('Failed to load paragraphs:', error);
+            if (this.clauseList) {
+                this.clauseList.innerHTML = '<p style="color: #e74c3c; padding: 20px;">항 데이터를 불러오는데 실패했습니다.</p>';
+            }
+        }
     }
     
     // 항 목록 렌더링 (복수선택 가능)
