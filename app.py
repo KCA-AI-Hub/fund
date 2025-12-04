@@ -104,29 +104,36 @@ def build_law_master_tree():
     """
     DB에서 법령 데이터를 읽어 3단 계층형 딕셔너리로 변환
     구조: { 지침명: { 제N조: { title: "조항제목", paragraphs: ["항1내용", "항2내용"] } } }
+
+    [수정사항]
+    1. Get or Create 패턴: 조(Article) 중복 생성 방지
+    2. 딕셔너리 기반 항(Paragraph) 관리: law_id를 Unique Key로 사용하여 중복 제거
+    3. Natural Sort: 제1조, 제2조, ... 제10조 순서로 정렬
     """
     import sqlite3
     global LAW_MASTER_TREE
+
+    def extract_article_number(article_key):
+        """'제123조' → 123 추출 (Natural Sort용)"""
+        match = re.search(r'제(\d+)조', article_key)
+        return int(match.group(1)) if match else float('inf')
 
     try:
         conn = sqlite3.connect('data/chatbot.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # 모든 법령 데이터 조회
+        # 모든 법령 데이터 조회 (정렬 제거 - Python에서 Natural Sort 적용)
         cursor.execute('''
-            SELECT sheet_name, article_num, article_title, paragraph_num, paragraph_content, full_text
+            SELECT sheet_name, article_num, article_title, paragraph_num, paragraph_content, full_text, law_id
             FROM laws
             WHERE sheet_name IS NOT NULL AND article_num IS NOT NULL
-            ORDER BY sheet_name,
-                CASE WHEN article_num GLOB '[0-9]*' THEN CAST(article_num AS INTEGER) ELSE 9999 END,
-                paragraph_num
         ''')
 
         rows = cursor.fetchall()
         conn.close()
 
-        # 3단 계층형 딕셔너리 생성
+        # 1단계: 딕셔너리 기반 계층 구조 생성 (중복 제거)
         tree = {}
         for row in rows:
             sheet_name = row['sheet_name']
@@ -134,33 +141,54 @@ def build_law_master_tree():
             article_title = row['article_title'] or ''
             paragraph_num = row['paragraph_num']
             paragraph_content = row['paragraph_content'] or row['full_text'] or ''
+            law_id = row['law_id']
 
-            # 1단계: 지침명
+            # 지침 (Get or Create)
             if sheet_name not in tree:
                 tree[sheet_name] = {}
 
-            # 2단계: 조항 (제N조)
+            # 조 (Get or Create) - 이미 존재하면 기존 객체 사용
             article_key = f"제{article_num}조"
             if article_key not in tree[sheet_name]:
                 tree[sheet_name][article_key] = {
                     'title': article_title,
-                    'paragraphs': []
+                    'paragraphs': {}  # 딕셔너리로 변경! (Unique Key 기반 중복 제거)
                 }
 
-            # 3단계: 항 내용 추가 (중복 방지)
-            if paragraph_content and paragraph_content not in tree[sheet_name][article_key]['paragraphs']:
-                # 항 번호가 있으면 포함
-                if paragraph_num:
-                    para_text = f"제{int(paragraph_num)}항: {paragraph_content}"
-                else:
-                    para_text = paragraph_content
-                tree[sheet_name][article_key]['paragraphs'].append(para_text)
+            # 항 (Unique Key로 중복 제거)
+            if paragraph_content:
+                # law_id를 Unique Key로 사용 (더 안정적)
+                para_key = law_id or f"{paragraph_num}_{hash(paragraph_content)}"
+                if para_key not in tree[sheet_name][article_key]['paragraphs']:
+                    if paragraph_num:
+                        try:
+                            para_text = f"제{int(float(paragraph_num))}항: {paragraph_content}"
+                        except (ValueError, TypeError):
+                            para_text = f"{paragraph_num}: {paragraph_content}"
+                    else:
+                        para_text = paragraph_content
+                    tree[sheet_name][article_key]['paragraphs'][para_key] = para_text
 
-        LAW_MASTER_TREE = tree
-        print(f"[Server] 마스터 트리 로드 완료: {len(tree)}개 지침, 총 {sum(len(v) for v in tree.values())}개 조항")
+        # 2단계: Natural Sort 적용 + 딕셔너리 → 리스트 변환
+        sorted_tree = {}
+        for sheet_name, articles in tree.items():
+            # 조항 정렬 (제1조, 제2조, ... 제10조 순)
+            sorted_articles = sorted(articles.items(), key=lambda x: extract_article_number(x[0]))
+
+            sorted_tree[sheet_name] = {}
+            for article_key, article_data in sorted_articles:
+                sorted_tree[sheet_name][article_key] = {
+                    'title': article_data['title'],
+                    'paragraphs': list(article_data['paragraphs'].values())  # 리스트로 변환
+                }
+
+        LAW_MASTER_TREE = sorted_tree
+        print(f"[Server] 마스터 트리 로드 완료: {len(sorted_tree)}개 지침, 총 {sum(len(v) for v in sorted_tree.values())}개 조항")
 
     except Exception as e:
         print(f"[Server] 마스터 트리 로드 실패: {e}")
+        import traceback
+        traceback.print_exc()
         LAW_MASTER_TREE = {}
 
 # 서버 시작 시 마스터 트리 로드
