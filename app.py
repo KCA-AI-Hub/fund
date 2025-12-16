@@ -196,12 +196,16 @@ build_law_master_tree()
 
 # Load FAQ policy mapping from faq_topic.xlsx
 faq_policy_map = {}
+faq_df_global = None  # FAQ 전체 데이터 보관 (직접 매칭용)
+FAQ_DIRECT_THRESHOLD = float(os.getenv('FAQ_DIRECT_THRESHOLD', '0.85'))  # FAQ 직접 사용 임계값
+
 try:
     faq_file_path = os.path.join(os.path.dirname(__file__), 'data', 'faq_topic.xlsx')
     if os.path.exists(faq_file_path):
-        faq_df = pd.read_excel(faq_file_path)
-        faq_policy_map = dict(zip(faq_df['faq_id'], faq_df['policy_anchor']))
+        faq_df_global = pd.read_excel(faq_file_path)  # 전체 데이터프레임 보관
+        faq_policy_map = dict(zip(faq_df_global['faq_id'], faq_df_global['policy_anchor']))
         app.logger.info(f"Loaded {len(faq_policy_map)} FAQ policy mappings from {faq_file_path}")
+        app.logger.info(f"FAQ direct match threshold: {FAQ_DIRECT_THRESHOLD}")
     else:
         app.logger.warning(f"FAQ file not found: {faq_file_path}")
 except Exception as e:
@@ -359,14 +363,70 @@ def chat():
                     retrieved_docs = faq_result['records']
                     app.logger.info(f'Retrieved {len(retrieved_docs)} FAQ records')
 
-                    # STEP 2: Extract faq_id from best match
+                    # STEP 2: Extract faq_id and score from best match
                     app.logger.info('Step 2: Extracting faq_id from best match')
                     best_faq = retrieved_docs[0]
+                    faq_score = best_faq.get('score', 0)
                     faq_id = extract_faq_id_from_content(best_faq)
+
+                    app.logger.info(f'Best FAQ score: {faq_score}, threshold: {FAQ_DIRECT_THRESHOLD}')
 
                     if faq_id:
                         app.logger.info(f'Extracted faq_id: {faq_id}')
                         matched_faq_id = faq_id
+
+                        # ★★★ FAQ 높은 매칭 체크 (score >= threshold) ★★★
+                        if faq_score >= FAQ_DIRECT_THRESHOLD:
+                            app.logger.info(f'[FAQ High Match] Score {faq_score} >= {FAQ_DIRECT_THRESHOLD}')
+
+                            # FAQ 답변 조회
+                            faq_data = get_faq_direct_answer(faq_id)
+
+                            if faq_data and faq_data.get('answer_text'):
+                                # ★ policy_anchor 기반 법령만 사용 (키워드 검색 결과 초기화)
+                                related_laws = []
+                                policy_docs = []
+
+                                if faq_data.get('policy_anchor'):
+                                    policy_anchors = [p.strip() for p in faq_data['policy_anchor'].split(';')]
+                                    for anchor in policy_anchors:
+                                        if anchor:
+                                            # ★ 새로운 policy_anchor 전용 검색 함수 사용
+                                            laws = database.search_laws_by_policy_anchor(anchor, limit=1)
+                                            for law in laws:
+                                                related_laws.append({
+                                                    'title': f"{law.get('sheet_name', '')} - {law.get('article_title', '')}",
+                                                    'content': (law.get('full_text') or law.get('paragraph_content') or '')[:500],
+                                                    'article_num': law.get('article_num', ''),
+                                                    'sheet_name': law.get('sheet_name', ''),
+                                                    'source': 'FAQ High Match',
+                                                    'matched_keyword': anchor
+                                                })
+                                                policy_docs.append({
+                                                    'segment': {
+                                                        'content': law.get('full_text') or law.get('paragraph_content') or '',
+                                                        'document': {'name': law.get('sheet_name', '')}
+                                                    },
+                                                    'score': 0.9
+                                                })
+
+                                # ★ GPT로 답변 생성 (FAQ + 법령 컨텍스트) - 포맷에 맞게
+                                app.logger.info('[FAQ High Match] Generating answer with GPT context')
+                                assistant_message = generate_answer_with_context(
+                                    user_message,
+                                    retrieved_docs,  # Dify에서 받은 FAQ 레코드
+                                    policy_docs if policy_docs else None
+                                )
+
+                                app.logger.info(f'[FAQ High Match] Completed - found {len(related_laws)} laws from policy_anchor')
+
+                                # 이후 정상 흐름 따라감 (suggested_answer 등)
+
+                            else:
+                                app.logger.warning(f'[FAQ High Match] Failed to get FAQ data, falling back to normal flow')
+
+                        # ★★★ 기존 로직: score가 낮으면 GPT 생성 ★★★
+                        app.logger.info(f'Using GPT generation (score {faq_score} < {FAQ_DIRECT_THRESHOLD} or FAQ data unavailable)')
 
                         # STEP 3: Get policy_anchor from local mapping
                         app.logger.info('Step 3: Getting policy_anchor from local mapping')
@@ -382,7 +442,7 @@ def chat():
 
                             for idx, anchor in enumerate(policy_anchors[:2], 1):  # Max 2 anchors
                                 app.logger.debug(f'Searching laws in SQLite {idx}: {anchor[:50]}...')
-                                laws = database.search_laws(anchor, limit=2)
+                                laws = database.search_laws_by_policy_anchor(anchor, limit=2)
 
                                 # Convert SQLite format to Dify-compatible format
                                 for law in laws:
@@ -436,10 +496,75 @@ def chat():
 
                     app.logger.info(f'Answer generated for session {session_id}')
 
-                # Fallback to OpenAI if Dify fails or no results
+                # Fallback: Dify 실패 시 로컬 FAQ 검색 시도
                 elif FALLBACK_TO_OPENAI:
-                    app.logger.warning('Dify FAQ search failed or no results, falling back to OpenAI')
-                    assistant_message = generate_openai_response(session_id, user_message)
+                    app.logger.warning('Dify FAQ search failed or no results, trying local FAQ search')
+
+                    # ★ 로컬 FAQ 검색 시도
+                    local_faq_match = search_faq_local(user_message, threshold=0.5)
+
+                    if local_faq_match and local_faq_match.get('score', 0) >= FAQ_DIRECT_THRESHOLD:
+                        # 로컬 FAQ에서 높은 매칭 발견
+                        faq_id = local_faq_match['faq_id']
+                        faq_score = local_faq_match['score']
+                        matched_faq_id = faq_id
+                        app.logger.info(f'[Local FAQ Match] Score {faq_score:.2f} >= {FAQ_DIRECT_THRESHOLD}')
+
+                        faq_data = get_faq_direct_answer(faq_id)
+
+                        if faq_data and faq_data.get('answer_text'):
+                            # policy_anchor 기반 법령 검색
+                            related_laws = []  # 키워드 검색 결과 초기화
+                            policy_docs = []
+
+                            if faq_data.get('policy_anchor'):
+                                policy_anchors = [p.strip() for p in faq_data['policy_anchor'].split(';')]
+                                for anchor in policy_anchors:
+                                    if anchor:
+                                        laws = database.search_laws_by_policy_anchor(anchor, limit=2)
+                                        for law in laws:
+                                            related_laws.append({
+                                                'title': f"{law.get('sheet_name', '')} - {law.get('article_title', '')}",
+                                                'content': (law.get('full_text') or law.get('paragraph_content') or '')[:500],
+                                                'article_num': law.get('article_num', ''),
+                                                'sheet_name': law.get('sheet_name', ''),
+                                                'source': 'Local FAQ Match',
+                                                'matched_keyword': anchor
+                                            })
+                                            # GPT 컨텍스트용 policy_docs
+                                            policy_docs.append({
+                                                'segment': {
+                                                    'content': law.get('full_text') or law.get('paragraph_content') or '',
+                                                    'document': {'name': law.get('sheet_name', '')}
+                                                },
+                                                'score': 0.9
+                                            })
+
+                            # FAQ를 Dify 포맷으로 변환해서 GPT에 전달
+                            faq_records = [{
+                                'segment': {
+                                    'content': f'faq_id":"{faq_id}";"question":"{faq_data["question"]}";"answer_text":"{faq_data["answer_text"]}"',
+                                    'document': {'name': 'Local FAQ'}
+                                },
+                                'score': faq_score
+                            }]
+
+                            # ★ GPT로 답변 생성 (FAQ + 법령 컨텍스트)
+                            app.logger.info('[Local FAQ Match] Generating answer with GPT context')
+                            assistant_message = generate_answer_with_context(
+                                user_message,
+                                faq_records,
+                                policy_docs if policy_docs else None
+                            )
+
+                            app.logger.info(f'[Local FAQ Match] Completed - found {len(related_laws)} laws')
+
+                            # 이후 로직은 정상 흐름 따라감 (suggested_answer 생성 등)
+
+                    else:
+                        # 로컬 FAQ도 매칭 안 되면 OpenAI 폴백
+                        app.logger.warning('Local FAQ search also failed, falling back to OpenAI')
+                        assistant_message = generate_openai_response(session_id, user_message)
                 else:
                     # No fallback, return error
                     raise Exception('Dify FAQ search failed and fallback is disabled')
@@ -710,6 +835,125 @@ def get_policy_anchor(faq_id):
         app.logger.warning(f"No policy_anchor found for faq_id: {faq_id}")
 
     return policy_anchor
+
+def get_faq_direct_answer(faq_id):
+    """
+    FAQ 답변을 직접 조회 (높은 유사도 매칭 시 GPT 호출 없이 사용)
+
+    Args:
+        faq_id: FAQ identifier (e.g., "FAQ-협약체결-0002")
+
+    Returns:
+        dict: {'answer_text': str, 'policy_anchor': str, 'question': str} or None
+    """
+    global faq_df_global
+
+    if faq_df_global is None or faq_id is None:
+        return None
+
+    try:
+        row = faq_df_global[faq_df_global['faq_id'] == faq_id]
+        if row.empty:
+            app.logger.warning(f"FAQ not found for direct answer: {faq_id}")
+            return None
+
+        result = {
+            'faq_id': faq_id,
+            'answer_text': str(row['answer_text'].values[0]) if pd.notna(row['answer_text'].values[0]) else '',
+            'policy_anchor': str(row['policy_anchor'].values[0]) if pd.notna(row['policy_anchor'].values[0]) else '',
+            'question': str(row['question'].values[0]) if pd.notna(row['question'].values[0]) else ''
+        }
+        app.logger.info(f"[FAQ Direct] Retrieved answer for {faq_id}")
+        return result
+
+    except Exception as e:
+        app.logger.error(f"Error getting FAQ direct answer: {e}")
+        return None
+
+def format_faq_as_html(faq_data, user_message):
+    """
+    FAQ 답변을 HTML 포맷으로 변환 (suggested_answer용)
+
+    Args:
+        faq_data: get_faq_direct_answer()의 반환값
+        user_message: 사용자 질문
+
+    Returns:
+        str: HTML 포맷 답변
+    """
+    if not faq_data:
+        return "<p>답변을 찾을 수 없습니다.</p>"
+
+    answer_text = faq_data.get('answer_text', '')
+
+    # 줄바꿈을 <br>로 변환
+    formatted_answer = answer_text.replace('\n', '<br>')
+
+    return f"""
+<div class="answer-section">
+    <h4>📌 답변</h4>
+    <p>{formatted_answer}</p>
+</div>
+<div class="answer-section">
+    <h4>💡 참고사항</h4>
+    <p>관련 법령은 오른쪽 '관련법령' 탭에서 확인하실 수 있습니다.</p>
+</div>
+"""
+
+def search_faq_local(user_message, threshold=0.6):
+    """
+    로컬 faq_topic.xlsx에서 유사한 FAQ 검색 (Dify 실패 시 폴백용)
+    간단한 키워드 매칭 기반 검색
+
+    Args:
+        user_message: 사용자 질문
+        threshold: 매칭 임계값 (0~1)
+
+    Returns:
+        dict: {'faq_id': str, 'score': float, 'question': str} or None
+    """
+    global faq_df_global
+
+    if faq_df_global is None:
+        return None
+
+    try:
+        # 사용자 질문에서 키워드 추출
+        user_keywords = set(user_message.replace('?', '').replace('？', '').split())
+
+        best_match = None
+        best_score = 0
+
+        for _, row in faq_df_global.iterrows():
+            faq_question = str(row.get('question', ''))
+            faq_keywords = set(faq_question.replace('?', '').replace('？', '').split())
+
+            # Jaccard 유사도 계산
+            if len(user_keywords | faq_keywords) > 0:
+                score = len(user_keywords & faq_keywords) / len(user_keywords | faq_keywords)
+
+                # 정확히 일치하는 경우 보너스
+                if user_message.strip() == faq_question.strip():
+                    score = 1.0
+
+                if score > best_score:
+                    best_score = score
+                    best_match = {
+                        'faq_id': row.get('faq_id'),
+                        'score': score,
+                        'question': faq_question
+                    }
+
+        if best_match and best_score >= threshold:
+            app.logger.info(f'[Local FAQ] Found match: {best_match["faq_id"]} (score: {best_score:.2f})')
+            return best_match
+
+        app.logger.info(f'[Local FAQ] No match found above threshold {threshold} (best: {best_score:.2f})')
+        return None
+
+    except Exception as e:
+        app.logger.error(f'Error in local FAQ search: {e}')
+        return None
 
 def generate_answer_with_context(user_message, faq_records, policy_docs):
     """

@@ -115,6 +115,119 @@ def search_laws(keyword: str, limit: int = 10) -> List[Dict]:
 
     return results
 
+def search_laws_by_policy_anchor(policy_anchor: str, limit: int = 5) -> List[Dict]:
+    """
+    policy_anchor로 법령 검색 (조항 번호 추출 + 키워드 매칭)
+
+    예: 「방송통신발전기금 운용·관리규정」 제35조
+        → '방송' OR '방발' + '제35조' 검색
+    """
+    import re
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    results = []
+
+    # 조항 번호 추출 (제35조, 제33조제2항 등)
+    article_match = re.search(r'제(\d+)조', policy_anchor)
+    article_num = article_match.group(1) if article_match else None
+
+    # 항 번호 추출 (제2항 등)
+    paragraph_match = re.search(r'제(\d+)항', policy_anchor)
+    paragraph_num = paragraph_match.group(1) if paragraph_match else None
+
+    # 키워드 추출 - DB sheet_name과 매핑
+    # DB sheet_names: ICT예산정책협의체 운영, 결과평가, 방발기금 운용관리규정,
+    #                 사업비 산정 및 정산, 성과관리 및 활용, 수행상황 및 정산보고,
+    #                 점검계획, 정진기금 운용관리규정, 협약체결 및 사업비 관리
+    keywords = []
+
+    # 방송통신발전기금 → 방발기금 운용관리규정
+    if '방송통신' in policy_anchor or '방발' in policy_anchor or '방송통신발전기금' in policy_anchor:
+        keywords.append('방발기금')
+
+    # 정보통신진흥기금 → 정진기금 운용관리규정
+    if '정보통신' in policy_anchor or '정진' in policy_anchor or '정보통신진흥기금' in policy_anchor:
+        keywords.append('정진기금')
+
+    # 수행상황 및 정산 보고 등에 관한 지침 → 수행상황 및 정산보고
+    if '수행상황' in policy_anchor or '정산 보고' in policy_anchor or '정산보고' in policy_anchor:
+        keywords.append('수행상황')
+
+    # 협약 관련 → 협약체결 및 사업비 관리
+    if '협약' in policy_anchor:
+        keywords.append('협약체결')
+
+    # 사업비 관련 → 사업비 산정 및 정산
+    if '사업비' in policy_anchor:
+        keywords.append('사업비')
+
+    # 성과 관련 → 성과관리 및 활용
+    if '성과' in policy_anchor:
+        keywords.append('성과관리')
+
+    # 결과평가 → 결과평가
+    if '결과평가' in policy_anchor:
+        keywords.append('결과평가')
+
+    # ICT예산정책협의체
+    if 'ICT' in policy_anchor or '예산정책협의체' in policy_anchor:
+        keywords.append('ICT예산')
+
+    # 점검계획
+    if '점검' in policy_anchor:
+        keywords.append('점검계획')
+
+    # 조항 번호가 있으면 조항 번호로 검색
+    if article_num:
+        # sheet_name에 키워드가 포함되고 article_num이 일치하는 법령 검색
+        if keywords:
+            keyword_conditions = ' OR '.join([f"sheet_name LIKE '%{kw}%'" for kw in keywords])
+            query = f'''
+            SELECT law_id, sheet_name, article_num,
+                   MIN(article_title) as article_title,
+                   MIN(full_text) as full_text,
+                   MIN(paragraph_content) as paragraph_content,
+                   MIN(tag) as tag,
+                   MAX(is_active) as is_active
+            FROM laws
+            WHERE ({keyword_conditions})
+              AND article_num LIKE ?
+            GROUP BY sheet_name, article_num
+            ORDER BY is_active DESC
+            LIMIT ?
+            '''
+            cursor.execute(query, (f'%{article_num}%', limit))
+        else:
+            # 키워드 없으면 조항 번호만으로 검색
+            query = '''
+            SELECT law_id, sheet_name, article_num,
+                   MIN(article_title) as article_title,
+                   MIN(full_text) as full_text,
+                   MIN(paragraph_content) as paragraph_content,
+                   MIN(tag) as tag,
+                   MAX(is_active) as is_active
+            FROM laws
+            WHERE article_num LIKE ?
+            GROUP BY sheet_name, article_num
+            ORDER BY is_active DESC
+            LIMIT ?
+            '''
+            cursor.execute(query, (f'%{article_num}%', limit))
+
+        results = [dict(row) for row in cursor.fetchall()]
+
+    # 결과가 없으면 일반 키워드 검색으로 폴백
+    if not results:
+        # policy_anchor에서 핵심 단어 추출해서 검색
+        for kw in keywords:
+            if not results:
+                results = search_laws(kw, limit)
+
+    conn.close()
+    return results
+
 # ========================================
 # FAQ 함수
 # ========================================
